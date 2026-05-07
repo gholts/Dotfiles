@@ -1,0 +1,13 @@
+*~
+._*
+.*.swp
+*.log
+# ---
+.Spotlight-V100
+.Trashes
+.DS_Store*
+ehthumbs.db
+Thumbs.db
+# ---
+.idea/*
+.vscode/*

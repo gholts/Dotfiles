@@ -1,0 +1,22 @@
+[user]
+	name = Hugo Lee
+	email = dev@proxies.foo
+	signingkey = /Users/gholts/.ssh/id_ed25519_git_signing.pub
+[core]
+    excludesfile = /Users/gholts/.config/git/ignore
+    editor = nvim
+[init]
+    defaultBranch = main
+[push]
+    autoSetupRemote = true
+[filter "lfs"]
+	clean = git-lfs clean -- %f
+	smudge = git-lfs smudge -- %f
+	process = git-lfs filter-process
+	required = true
+[commit]
+	gpgsign = true
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = /Users/gholts/.ssh/allowed_signers
