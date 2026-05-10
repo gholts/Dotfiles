@@ -7,23 +7,19 @@
 --  ░░███  ░░███  ░███ ░███ ░███ ░███ ░███   ░███ ███ ░░░░███
 --   ░░█████████  ████ █████░░██████  █████  ░░█████  ██████
 --    ░░░░░░░░░  ░░░░ ░░░░░  ░░░░░░  ░░░░░    ░░░░░  ░░░░░░
------------------------------------------------------------require
-vim.loader.enable()
+------------------------------------------------------------------
+local loader, pack = vim.loader, vim.pack
+------------------------------------------------------------------
+if loader then
+	loader.enable()
+end
 require("settings")
 require("remapping")
-------------------------------------------------------color_scheme
-vim.pack.add({ "https://github.com/nyoom-engineering/oxocarbon.nvim" })
-vim.opt.background = "dark"
-vim.cmd.colorscheme("oxocarbon")
-local colors = require("oxocarbon").oxocarbon
-if colors then
-	vim.api.nvim_set_hl(0, "FloatBorder", { fg = colors.base03, bg = colors.blend })
-	vim.api.nvim_set_hl(0, "FloatBorder", { fg = colors.base03, bg = "none" })
-end
+require("colorscheme")
 ------------------------------------------------------------------
 -- Plugins
 ------------------------------------------------------------------
-vim.pack.add({
+pack.add({
 	"https://github.com/nvim-lua/plenary.nvim",
 	"https://github.com/nvim-treesitter/nvim-treesitter",
 	"https://github.com/chaoren/vim-wordmotion",
@@ -39,7 +35,7 @@ vim.pack.add({
 	"https://github.com/mbbill/undotree",
 })
 ---------------------------------------------------------------lsp
-vim.pack.add({
+pack.add({
 	"https://github.com/stevearc/conform.nvim",
 	"https://github.com/williamboman/mason.nvim",
 	"https://github.com/williamboman/mason-lspconfig.nvim",
