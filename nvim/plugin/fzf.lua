@@ -7,7 +7,7 @@ require("fzf-lua").setup({
 		-- "belowright vnew" : split right
 		-- "aboveleft vnew   : split left
 		-- border argument passthrough to nvim_open_win()
-		border = "rounded",
+		-- border = "rounded",
 		fullscreen = false, -- start fullscreen?
 		treesitter = {
 			enabled = true,
