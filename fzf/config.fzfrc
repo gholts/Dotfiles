@@ -1,14 +1,15 @@
 #--------------------------------------------- ~/.config/fzf/config
 --preview="~/.config/fzf/preview.sh {}"
 #------------------------------------------------------------------
---color=fg:#d0d0d0,fg+:#d0d0d0,bg:-1,bg+:#262626
+# TODO: add light mode support
+--color=fg:-1,fg+:#d0d0d0,bg:-1,bg+:#262626
 --color=hl:#08bdba,hl+:#5fd7ff,info:#78a9ff,marker:#ee5396
 --color=prompt:#33b1ff,spinner:#ff7eb6,pointer:#42be65,header:#be95ff
 --color=border:#262626,label:#aeaeae,query:#d9d9d9
---border='rounded'
---border-label=''
---preview-window='border-rounded'
---prompt='> '
---marker='>'
---separator='─'
---scrollbar='│'
+--border="sharp"
+--border-label=""
+--preview-window="border-sharp"
+--prompt="> "
+--marker=">"
+--separator="─"
+--scrollbar="│"
