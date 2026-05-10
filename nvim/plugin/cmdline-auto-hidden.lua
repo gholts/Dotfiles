@@ -1,5 +1,4 @@
 local api, o = vim.api, vim.o
-
 local cmdline_group = api.nvim_create_augroup("MinimalCmdLine", { clear = true })
 
 api.nvim_create_autocmd("CmdlineEnter", {
