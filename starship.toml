@@ -7,76 +7,38 @@
 #  ░░███  ░░███  ░███ ░███ ░███ ░███ ░███   ░███ ███ ░░░░███
 #   ░░█████████  ████ █████░░██████  █████  ░░█████  ██████
 #    ░░░░░░░░░  ░░░░ ░░░░░  ░░░░░░  ░░░░░    ░░░░░  ░░░░░░
-#---------------------------------------------no_language_detection
-#-- Typesetting
 #------------------------------------------------------------------
-format = """
-[╭](bold fg:8)\
-$battery\
-$username\
-$directory\
-$git_branch\
-$git_status\
-$cmd_duration\
-$fill\
-$time\
-$line_break$character"""
+# TODO: add light mode
+format = "[╭](bold fg:8)$username$directory$git_branch$git_status$cmd_duration $fill $line_break$character"
 #------------------------------------------------------------------
-#-- Option
-#------------------------------------------------------------------
-add_newline = true
+add_newline = false
 command_timeout = 5000
-#------------------------------------------------------------------
-#-- Segment 
-#------------------------------------------------------------------
-[battery]
-format = "[ $percentage ]($style)"
-#------------------------------------------------------------------
-[[battery.display]]
-threshold = 50
-style = "bold fg:14 bg:90"
 #------------------------------------------------------------------
 [username]
 show_always = true
-style_user = "bg:235"
-style_root = "bg:53"
-format = "[ $user ]($style)"
+format = " $user"
 #------------------------------------------------------------------
 [directory]
-style = "bg:237"
-format = "[ $path ]($style)"
-truncation_length = 0
-truncation_symbol = "…/"
+format = "[ $path](fg:1)"
+truncation_length = 4
+truncation_symbol = "+"
 #------------------------------------------------------------------
 [git_branch]
-symbol = ""
-style = "bg:60"
-format = "[ $symbol $branch]($style)"
+format = "[ $branch](fg:3)"
 #------------------------------------------------------------------
 [git_status]
-style = "bg:60"
-format = "[ $all_status$ahead_behind ]($style)"
+format = "[ $modified](fg:5)"
 #------------------------------------------------------------------
 [cmd_duration]
 min_time = 1000
 show_milliseconds = false
 disabled = false
-format = "[ 󰞌 $duration ]($style)"
-style = "bold bg:62"
+format = "[ $duration](fg:2)"
 #------------------------------------------------------------------
 [fill]
-symbol = " "
-style = "fg:8 bg:none"
-#------------------------------------------------------------------
-[time]
-disabled = false
-time_format = "%R"
-style = "bg:62"
-format = "[  $time ]($style)"
+symbol = "─"
+style = "fg:#242424 bg:none"
 #------------------------------------------------------------------
 [character]
 disabled = false
-format = """
-[╰$symbol](fg:8) """
-success_symbol = "[](bold fg:8)"
-error_symbol = "[](bold fg:6)"
+format = "[╰](fg:8) "
