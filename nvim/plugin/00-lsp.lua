@@ -1,15 +1,18 @@
 require("conform").setup({
 	formatters_by_ft = {
-		sh = { "shfmt" },
-		zsh = { "shfmt" },
-		bash = { "shfmt" },
 		lua = { "stylua" },
 		markdown = { "prettierd" },
+		javascript = { "prettierd" },
+		typescript = { "prettierd" },
 		astro = { "prettierd" },
 		css = { "prettierd" },
 		html = { "prettierd" },
 		yaml = { "prettierd" },
+		sh = { "shfmt" },
+		zsh = { "shfmt" },
+		bash = { "shfmt" },
 		toml = { "taplo" },
+		python = { "ruff" },
 		applescript = { "applescript_mac" },
 	},
 	format_on_save = {
