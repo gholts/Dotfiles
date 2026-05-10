@@ -6,18 +6,16 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 require("nvim-treesitter").install({
 	"vimdoc",
+	"regex",
 	"javascript",
 	"typescript",
+	"python",
 	"lua",
 	"json",
 	"bash",
 	"css",
 	"html",
 	"tsx",
-	"vue",
 	"astro",
-	"svelte",
-	"typst",
-	"regex",
 	"swift",
 })
