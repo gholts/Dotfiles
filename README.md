@@ -19,12 +19,6 @@ Check out my [blog](https://proxies.foo/).
       <td>
         <img
           alt="image"
-          src="https://github.com/user-attachments/assets/d5aefb4b-49a7-4a5c-802a-5a18dc54fc20"
-        />
-      </td>
-      <td>
-        <img
-          alt="image"
           src="https://github.com/user-attachments/assets/98780506-d8bb-4d90-8a71-5bc252bffd95"
         />
       </td>
@@ -48,12 +42,6 @@ Check out my [blog](https://proxies.foo/).
       </td>
     </tr>
     <tr>
-      <td>
-        <img
-          alt="image"
-          src="https://github.com/user-attachments/assets/caff14f4-1ada-4f69-b0a7-50b37accf93e"
-        />
-      </td>
       <td>
         <img
           alt="image"
