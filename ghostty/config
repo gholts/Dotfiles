@@ -8,28 +8,15 @@
 #   ░░█████████  ████ █████░░██████  █████  ░░█████  ██████
 #    ░░░░░░░░░  ░░░░ ░░░░░  ░░░░░░  ░░░░░    ░░░░░  ░░░░░░
 #------------------------------------------------------------------
-#-- Windows
-#------------------------------------------------------------------
-# maximize = true
-fullscreen = true
-# macos-window-buttons = hidden
-macos-titlebar-style = native
-window-padding-balance = true
-window-subtitle = working-directory
-window-colorspace = display-p3
-window-height = 30
-window-width = 130
-window-step-resize = true
-background-opacity = 1
-background-blur = 76
-#------------------------------------------------------------------
 quit-after-last-window-closed = true
+window-save-state = always
+window-padding-balance = true
+window-colorspace = display-p3
+macos-titlebar-proxy-icon = hidden
 #----------------------------------------------------quick_terminal
 quick-terminal-position = bottom
-quick-terminal-screen = macos-menu-bar
-quick-terminal-size = 30%
-#------------------------------------------------------------------
-#-- Function
+quick-terminal-screen = main
+quick-terminal-size = 40%
 #---------------------------------------------------------clipboard
 clipboard-read = allow
 clipboard-write = allow
@@ -46,46 +33,18 @@ window-inherit-working-directory = false
 tab-inherit-working-directory = false
 split-inherit-working-directory = true
 #------------------------------------------------------------------
-#-- Keybind
-#------------------------------------------------------------------
 keybind = global:opt+tab=toggle_quick_terminal
 #--------------------------------------------------------goto_split
-keybind = unconsumed:opt+cmd+h=goto_split:left
-keybind = unconsumed:opt+cmd+j=goto_split:bottom
-keybind = unconsumed:opt+cmd+k=goto_split:top
-keybind = unconsumed:opt+cmd+l=goto_split:right
+keybind = unconsumed:opt+control+h=goto_split:left
+keybind = unconsumed:opt+control+j=goto_split:bottom
+keybind = unconsumed:opt+control+k=goto_split:top
+keybind = unconsumed:opt+control+l=goto_split:right
 #------------------------------------------------------------------
 keybind = unconsumed:opt+cmd+Equal=equalize_splits
-#------------------------------------------------------------------
-#-- Appearance
-#--------------------------------------------------------------font
+#--------------------------------------------------------appearance
 font-size = 15
-#--------------------------------------------------------background
-background = #161616
-foreground = #f2f4f8
-selection-background = #393939
-selection-foreground = #161616
-#------------------------------------------------------------cursor
-cursor-text = #000000
-cursor-color = #ffffff
+theme = light:Oxocarbon-light,dark:Oxocarbon-dark
 cursor-style = underline
-cursor-style-blink = true
-#------------------------------------------------------color_scheme
-theme = Oxocarbon
-#------------------------------------------------------------------
-palette = 0=#161616
-palette = 1=#33b1ff
-palette = 2=#33b1ff
-palette = 3=#ee5396
-palette = 4=#42be65
-palette = 5=#be95ff
-palette = 6=#ff7eb6
-palette = 7=#f2f4f8
-palette = 8=#585858
-palette = 9=#3ddbd9
-palette = 10=#33b1ff
-palette = 11=#ee5396
-palette = 12=#42be65
-palette = 13=#be95ff
-palette = 14=#ff7eb6
-palette = 15=#f2f4f8
+# palette-generate = true
+# palette-harmonious = true
+# minimum-contrast = 1.3
