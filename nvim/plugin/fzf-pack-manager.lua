@@ -29,13 +29,14 @@ local function run_pack_manager(non_active)
 	for name, info in pairs(lock.plugins) do
 		local p = packs[name] or {}
 		if not (non_active and p.active) then
-			local entry = ("%s:1:1:[%s]  %s"):format(
-				get_readme(p.path),
-				utils.ansi_codes.green((info.rev or ""):sub(1, 7)),
-				utils.ansi_codes.blue(name)
-			)
+			local rev = (info.rev or ""):sub(1, 7)
+			local readme = get_readme(p.path)
+
+			local entry = ("%s:1:1:[%s]  %s"):format(readme, utils.ansi_codes.green(rev), utils.ansi_codes.blue(name))
+			local plain_entry = ("%s:1:1:[%s]  %s"):format(readme, rev, name)
+
 			entries[#entries + 1] = entry
-			pmap[entry] = { name, p }
+			pmap[plain_entry] = { name, p }
 		end
 	end
 
@@ -45,7 +46,10 @@ local function run_pack_manager(non_active)
 
 	local function act(fn)
 		return function(sel)
-			local d = pmap[sel[1] or ""]
+			if not sel or not sel[1] then
+				return
+			end
+			local d = pmap[sel[1]]
 			if d then
 				fn(d[1], d[2])
 			end
@@ -65,7 +69,7 @@ local function run_pack_manager(non_active)
 			["ctrl-u"] = act(function(name)
 				vim.pack.update({ name })
 			end),
-			["ctrl-d"] = act(function(name, p)
+			["ctrl-x"] = act(function(name, p)
 				if not p.path then
 					return vim.notify("Not on disk: " .. name, log.WARN)
 				end
