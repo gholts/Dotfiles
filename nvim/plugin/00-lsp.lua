@@ -8,6 +8,7 @@ require("conform").setup({
 		css = { "prettierd" },
 		html = { "prettierd" },
 		yaml = { "prettierd" },
+		yml = { "prettierd" },
 		sh = { "shfmt" },
 		zsh = { "shfmt" },
 		bash = { "shfmt" },
