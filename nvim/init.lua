@@ -16,9 +16,7 @@ end
 require("settings")
 require("remapping")
 require("colorscheme")
-------------------------------------------------------------------
--- Plugins
-------------------------------------------------------------------
+-----------------------------------------------------------plugins
 pack.add({
 	"https://github.com/nvim-lua/plenary.nvim",
 	"https://github.com/nvim-treesitter/nvim-treesitter",
@@ -34,7 +32,7 @@ pack.add({
 	"https://github.com/chrishrb/gx.nvim",
 	"https://github.com/mbbill/undotree",
 })
----------------------------------------------------------------lsp
+-------------------------------------------------------lsp_plugins
 pack.add({
 	"https://github.com/stevearc/conform.nvim",
 	"https://github.com/williamboman/mason.nvim",
