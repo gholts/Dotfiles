@@ -1,4 +1,0 @@
-list=( ${(Q)"${(z)$(<<\EO:list
-'trace-login'
-EO:list
-)}"} )
