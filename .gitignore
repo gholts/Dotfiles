@@ -1,5 +1,5 @@
-zcompcache/
 karabiner/assets/
 karabiner/automatic_backups/
 
+.zcompcache/
 .zsh_plugins.zsh
