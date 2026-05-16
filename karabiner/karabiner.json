@@ -8,7 +8,34 @@
             "complex_modifications": {
                 "rules": [
                     {
-                        "description": "Pressing fn + (hjkl) to move cursor",
+                        "description": "Fn + Shift + F1 to Decrease Keyboard Brightness",
+                        "manipulators": [
+                            {
+                                "from": {
+                                    "key_code": "f1",
+                                    "modifiers": {
+                                        "mandatory": ["fn", "shift"],
+                                        "optional": ["caps_lock"]
+                                    }
+                                },
+                                "to": [{ "key_code": "illumination_decrement" }],
+                                "type": "basic"
+                            },
+                            {
+                                "from": {
+                                    "key_code": "f2",
+                                    "modifiers": {
+                                        "mandatory": ["fn", "shift"],
+                                        "optional": ["caps_lock"]
+                                    }
+                                },
+                                "to": [{ "key_code": "illumination_increment" }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Vim-style Cursor Movement: Fn + h/j/k/l to Arrows",
                         "manipulators": [
                             {
                                 "from": {
@@ -57,7 +84,7 @@
                         ]
                     },
                     {
-                        "description": "Change caps_lock to left_control if pressed with other keys, change caps_lock to escape if pressed alone.",
+                        "description": "Map Caps Lock to Left Control (Escape if tapped alone)",
                         "manipulators": [
                             {
                                 "from": {
