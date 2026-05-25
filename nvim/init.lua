@@ -22,8 +22,6 @@ pack.add({
 	"https://github.com/nvim-treesitter/nvim-treesitter",
 	"https://github.com/chaoren/vim-wordmotion",
 	"https://github.com/abecodes/tabout.nvim",
-	"https://github.com/bwpge/lualine-pretty-path",
-	"https://github.com/nvim-lualine/lualine.nvim",
 	"https://github.com/sphamba/smear-cursor.nvim",
 	"https://github.com/serhez/bento.nvim",
 	"https://github.com/stevearc/oil.nvim",
