@@ -1,4 +1,4 @@
-local ignore_buftype = { quickfix = true, nofile = true, help = true }
+local ignore_buftype = { quickfix = true, nofile = true, help = true, terminal = true }
 local ignore_filetype = { gitcommit = true, gitrebase = true, svn = true, hgcommit = true }
 
 vim.api.nvim_create_autocmd({ "BufWinEnter", "FileType" }, {
