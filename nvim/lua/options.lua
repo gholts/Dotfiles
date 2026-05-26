@@ -10,6 +10,7 @@ o.wrap = false -- line warpping
 o.scrolloff = 10 -- add n(10) line offset from the windows edge
 o.splitkeep = "screen" -- make split keep same line
 o.termguicolors = true -- true color
+o.winborder = "single"
 o.softtabstop = 4 -- in I, make <Tab> like 4 spaces
 o.tabstop = 4 -- what tab character occupies looks like
 o.shiftwidth = 4 -- how many space for indent
@@ -22,8 +23,3 @@ o.smartcase = true -- like smart auto case insensitive
 o.smoothscroll = true
 o.autochdir = false -- automatically change current dir
 o.undofile = true -- persistent undo
-------------------------------------------------------------------
--- Default value for smart hidden of cmdline
--------------------------------------------------------cmdline.lua
-o.cmdheight = 0
-o.laststatus = 2

@@ -13,7 +13,7 @@ local loader, pack = vim.loader, vim.pack
 if loader then
 	loader.enable()
 end
-require("settings")
+require("options")
 require("remapping")
 require("colorscheme")
 -----------------------------------------------------------plugins
