@@ -1,8 +1,8 @@
 ```shell
 cd dotfiles
-stow -t ~/.config .
+stow -t "$HOME/.config" .
 # unstow
-stow -D -t ~/.config .
+stow -D -t "$HOME/.config" .
 ```
 
 ## About
