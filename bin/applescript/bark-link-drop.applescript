@@ -64,11 +64,11 @@ if theLink contains "http" then
 	
 	try
 		do shell script "curl -G " & quoted form of barkEndpoint & ¬
-			" --data-urlencode 'title=LinkDroped'" & ¬
-			" --data-urlencode 'body=" & linkTitle & "'" & ¬
-			" --data-urlencode 'url=" & theLink & "'" & ¬
-			" --data-urlencode 'group=LinkDrop'" & ¬
-			" --data-urlencode 'level=timeSensitive'"
+			" --data-urlencode " & quoted form of "title=LinkDropped" & ¬
+			" --data-urlencode " & quoted form of ("body=" & linkTitle) & ¬
+			" --data-urlencode " & quoted form of ("url=" & theLink) & ¬
+			" --data-urlencode " & quoted form of "group=LinkDrop" & ¬
+			" --data-urlencode " & quoted form of "level=timeSensitive"
 		
 	on error errMsg
 		display dialog "Send failed: " & errMsg
