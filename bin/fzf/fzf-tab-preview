@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+
+path=$1
+
+if [[ -d "$path" ]]; then
+  eza -1aT \
+    --level=3 \
+    --group-directories-first \
+    --color=always \
+    --ignore-glob '.DS_Store|.localized|.idea|.vscode' \
+    -- "$path"
+else
+  bat --color=always -- "$path"
+fi

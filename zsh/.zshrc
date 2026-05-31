@@ -26,6 +26,7 @@ setopt hist_find_no_dups
 zstyle ':completion:*:descriptions' format "[%d]"
 zstyle ':fzf-tab:*' fzf-flags --height=40% --min-height=15
 zstyle ':fzf-tab:*' fzf-preview '[[ -d $realpath ]] && { echo "Directory: \e[1m$(basename "$realpath")\e[0m" && eza -1aT --level=3 --group-directories-first --color=always --ignore-glob ".DS_Store|.localized|.idea|.vscode" $realpath } || bat --color=always $realpath'
+zstyle ':fzf-tab:*' fzf-preview '~/.config/bin/fzf/fzf-tab-preview "$realpath"'
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'                             # case insensitive
 autoload -U compinit && compinit -d "$XDG_CACHE_HOME"/zsh/zcompdump-"$ZSH_VERSION" # lazy load compeletion
 eval "$(starship init zsh)"                                                        # starship

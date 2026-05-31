@@ -1,7 +1,6 @@
-#--------------------------------------------- ~/.config/fzf/config
---preview="~/.config/fzf/preview.sh {}"
+#------------------------------------------$HOME/.config/fzf/config
+--preview="$HOME/.config/bin/fzf/preview {}"
 #------------------------------------------------------------------
---color=16
 --color=fg:-1,fg+:8,bg:-1,bg+:7
 --color=hl:#08bdba,hl+:#5fd7ff,info:#78a9ff,marker:#ee5396
 --color=prompt:#33b1ff,spinner:#ff7eb6,pointer:#42be65,header:#be95ff
@@ -13,3 +12,4 @@
 --marker=">"
 --separator="─"
 --scrollbar="│"
+--ansi
