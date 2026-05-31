@@ -29,7 +29,7 @@ autoload -U compinit && compinit -d "$XDG_CACHE_HOME"/zsh/zcompdump-"$ZSH_VERSIO
 #------------------------------------------------------------source
 source <(fzf --zsh)                                                # fzf
 eval "$(starship init zsh)"                                        # starship
-source "$(brew --prefix)/opt/antidote/share/antidote/antidote.zsh" # antidote
+source "$HOMEBREW_PREFIX/opt/antidote/share/antidote/antidote.zsh" # antidote
 source "$XDG_DATA_HOME/cargo/env"                                  # cargo
 source "$ZDOTDIR/function.zsh"                                     # function
 source "$ZDOTDIR/keymap.zsh"                                       # keymap

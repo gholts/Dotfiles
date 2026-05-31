@@ -36,8 +36,8 @@ export NPM_CONFIG_INIT_MODULE="$XDG_CONFIG_HOME"/npm/config/npm-init.js
 export NPM_CONFIG_CACHE="$XDG_CACHE_HOME"/npm
 export NPM_CONFIG_TMP="$XDG_RUNTIME_DIR"/npm
 #----------------------------------------------------------packages
-export PATH="/Users/gholts/.cache/.bun/bin:$PATH"    # bun
-export PATH="$(brew --prefix)/opt/node@24/bin:$PATH" # node
+export PATH="$XDG_CACHE_HOME/.bun/bin:$PATH"         # bun
+export PATH="$HOMEBREW_PREFIX/opt/node@24/bin:$PATH" # node
 #------------------------------------------------------------------
 export SHELL_SESSIONS_DISABLE=1  # remove zsh_sessions file
 export HOMEBREW_NO_AUTO_UPDATE=1 # disable homebrew auto update
