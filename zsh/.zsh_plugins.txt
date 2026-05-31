@@ -1,8 +1,6 @@
-hlissner/zsh-autopair kind:defer
-Aloxaf/fzf-tab
-ajeetdsouza/zoxide
-mattmc3/ez-compinit
-zsh-users/zsh-completions kind:fpath path:src
-zsh-users/zsh-autosuggestions
-zdharma-continuum/fast-syntax-highlighting kind:defer
-sukkaw/zsh-osx-autoproxy
+hlissner/zsh-autopair kind:defer                         # Auto-insert matching pairs like quotes, brackets, and parentheses
+Aloxaf/fzf-tab                                           # Replace zsh completion menu with an fzf-powered interface
+ajeetdsouza/zoxide                                       # Smarter cd command based on directory usage frequency
+zsh-users/zsh-autosuggestions                            # Show command suggestions from history while typing
+zdharma-continuum/fast-syntax-highlighting kind:defer    # Highlight commands, strings, paths, and errors while typing
+sukkaw/zsh-osx-autoproxy kind:defer                      # Automatically configure proxy environment variables on macOS
