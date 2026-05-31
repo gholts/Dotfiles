@@ -9,11 +9,15 @@ cdf() {
     fi
 }
 #------------------------------------------------------smtart_touch
-touch() {
-    for arg in "$@"; do
-        if [[ ! "$arg" == -* ]]; then
-            mkdir -p "$(dirname "$arg")" && command touch "$arg"
-        fi
+mkfile() {
+    local file
+    for file in "$@"; do
+        [[ "$file" == -* ]] && {
+            command touch "$@"
+            return
+        }
+        mkdir -p -- "${file:h}"
+        command touch -- "$file"
     done
 }
 #---------------------------------------------------------utilities
@@ -22,11 +26,12 @@ alias "cd"="z"
 alias ".."="cd ../"
 alias "..."="cd ../../"
 alias "...."="cd ../../../"
+alias "t"="mkfile"
 #------------------------------------------------------------eza/ls
 alias "eza"="eza -I='.DS_Store|.localized|.CFUserTextEncoding' --group-directories-last"
 alias "ls"="eza"
 alias "la"="eza -lah"
-alias "tr"="eza -T --level=4"
+alias "tree"="eza -T --level=4"
 alias "tg"="eza -1a --git-ignore"
 #----------------------------------------------------------packages
 alias "vim"="nvim"
