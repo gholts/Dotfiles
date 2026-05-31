@@ -1,0 +1,4 @@
+--strip-ansi=auto
+--color=always
+--theme="ansi"
+--style="numbers,changes"
