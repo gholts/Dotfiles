@@ -1,14 +1,332 @@
 #!/usr/bin/env bash
 
-path=$1
+set -o pipefail
+
+path="${1:-}"  # fzf-tab: real path if the candidate is path-like
+word="${2:-}"  # fzf-tab: actual word to be inserted
+group="${3:-}" # fzf-tab: completion group, e.g. [files], [options], [processes]
+desc="${4:-}"  # fzf-tab: displayed description
+
+have() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+print_info() {
+    [[ -n "$group" ]] && printf 'Group: %s\n' "$group"
+    [[ -n "$word" ]] && printf 'Word:  %s\n' "$word"
+    [[ -n "$desc" && "$desc" != "$word" ]] && printf 'Desc:  %s\n' "$desc"
+}
+
+preview_text_file() {
+    local file="$1"
+
+    if have bat; then
+        bat \
+            --color=always \
+            --theme="${BAT_THEME:-ansi}" \
+            --style=numbers,changes \
+            --line-range=:300 \
+            -- "$file"
+    else
+        sed -n '1,300p' -- "$file"
+    fi
+}
+
+preview_dir() {
+    local dir="$1"
+
+    if have eza; then
+        eza -1aT \
+            --level=3 \
+            --group-directories-first \
+            --color=always \
+            --ignore-glob '.DS_Store|.localized|.idea|.vscode' \
+            -- "$dir"
+    else
+        CLICOLOR_FORCE=1 ls -la -- "$dir"
+    fi
+}
+
+preview_image() {
+    local file="$1"
+
+    if have chafa; then
+        chafa "$file"
+    elif have viu; then
+        viu "$file"
+    elif have imgcat; then
+        imgcat "$file"
+    else
+        file -- "$file"
+    fi
+}
+
+preview_archive() {
+    local file="$1"
+
+    case "$file" in
+    *.zip | *.jar | *.war | *.ipa)
+        if have unzip; then
+            unzip -l "$file" | sed -n '1,200p'
+        else
+            file -- "$file"
+        fi
+        ;;
+    *.tar | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz)
+        if have tar; then
+            tar -tf "$file" 2>/dev/null | sed -n '1,200p'
+        else
+            file -- "$file"
+        fi
+        ;;
+    *)
+        file -- "$file"
+        ;;
+    esac
+}
+
+preview_pdf() {
+    local file="$1"
+
+    if have pdftotext; then
+        pdftotext -l 3 "$file" - 2>/dev/null | sed -n '1,200p'
+    elif have pdfinfo; then
+        pdfinfo "$file"
+    else
+        file -- "$file"
+    fi
+}
+
+preview_plist() {
+    local file="$1"
+
+    if have plutil; then
+        plutil -p "$file" 2>/dev/null | sed -n '1,200p'
+    else
+        preview_text_file "$file"
+    fi
+}
+
+preview_sqlite() {
+    local file="$1"
+
+    if have sqlite3; then
+        {
+            printf '.tables\n'
+            printf 'SELECT name, type FROM sqlite_master ORDER BY type, name LIMIT 50;\n'
+        } | sqlite3 "$file" 2>/dev/null
+    else
+        file -- "$file"
+    fi
+}
+
+preview_process() {
+    local pid="$word"
+
+    [[ "$pid" =~ ^[0-9]+$ ]] || {
+        print_info
+        return
+    }
+
+    # macOS / BSD ps compatible
+    ps -p "$pid" \
+        -o pid= \
+        -o ppid= \
+        -o user= \
+        -o %cpu= \
+        -o %mem= \
+        -o etime= \
+        -o stat= \
+        -o command= 2>/dev/null
+}
+
+preview_command() {
+    local cmd="$word"
+
+    [[ -n "$cmd" ]] || {
+        print_info
+        return
+    }
+
+    type -a -- "$cmd" 2>/dev/null
+
+    if have man; then
+        printf '\n'
+        man "$cmd" 2>/dev/null | col -bx | sed -n '1,120p'
+    fi
+}
+
+preview_host() {
+    local host="$word"
+
+    [[ -n "$host" ]] || {
+        print_info
+        return
+    }
+
+    printf 'Host: %s\n\n' "$host"
+
+    if [[ -r "$HOME/.ssh/config" ]]; then
+        awk -v host="$host" '
+            BEGIN { found = 0 }
+            /^Host[ \t]+/ {
+                found = 0
+                for (i = 2; i <= NF; i++) {
+                    if ($i == host) found = 1
+                }
+            }
+            found { print }
+        ' "$HOME/.ssh/config"
+    fi
+
+    if [[ -r /etc/hosts ]]; then
+        printf '\n/etc/hosts:\n'
+        grep -E "[[:space:]]${host}([[:space:]]|$)" /etc/hosts 2>/dev/null
+    fi
+}
+
+preview_git_ref() {
+    local ref="$word"
+
+    [[ -n "$ref" ]] || {
+        print_info
+        return
+    }
+
+    git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
+        print_info
+        return
+    }
+
+    git show \
+        --color=always \
+        --stat \
+        --decorate \
+        --no-ext-diff \
+        -- "$ref" 2>/dev/null | sed -n '1,240p'
+}
+
+preview_brew_formula() {
+    local formula="$word"
+
+    [[ -n "$formula" ]] || {
+        print_info
+        return
+    }
+
+    if have brew; then
+        HOMEBREW_COLOR=1 brew info "$formula" 2>/dev/null
+    else
+        print_info
+    fi
+}
+
+preview_non_path() {
+    case "$group" in
+    *process* | *Process* | *processes* | *Processes*)
+        preview_process
+        ;;
+    *command* | *Command* | *builtin* | *Builtin* | *external* | *External* | *function* | *Function* | *alias* | *Alias*)
+        preview_command
+        ;;
+    *host* | *Host* | *domain* | *Domain* | *ip\ address* | *IP*)
+        preview_host
+        ;;
+    *branch* | *Branch* | *tag* | *Tag* | *commit* | *Commit*)
+        preview_git_ref
+        ;;
+    *formula* | *Formula* | *cask* | *Cask*)
+        preview_brew_formula
+        ;;
+    *option* | *Option* | *parameter* | *Parameter*)
+        print_info
+        ;;
+    *)
+        print_info
+        ;;
+    esac
+}
+
+# ------------------------------------------------------------
+# 1. Non-path: options / commands / processes / hosts / git refs...
+# ------------------------------------------------------------
+
+if [[ -z "$path" || ! -e "$path" ]]; then
+    preview_non_path
+    exit 0
+fi
+
+# ------------------------------------------------------------
+# 2. path: directory / text / image / archive / binary...
+# ------------------------------------------------------------
+
+if [[ -L "$path" ]]; then
+    printf 'Symlink: %s -> %s\n\n' "$path" "$(readlink "$path")"
+fi
+
+if [[ ! -r "$path" ]]; then
+    printf 'Not readable:\n'
+    ls -ldO -- "$path" 2>/dev/null || ls -ld -- "$path"
+    exit 0
+fi
 
 if [[ -d "$path" ]]; then
-  eza -1aT \
-    --level=3 \
-    --group-directories-first \
-    --color=always \
-    --ignore-glob '.DS_Store|.localized|.idea|.vscode' \
-    -- "$path"
-else
-  bat --color=always -- "$path"
+    preview_dir "$path"
+    exit 0
 fi
+
+if [[ ! -s "$path" ]]; then
+    printf 'Empty file: %s\n' "$path"
+    exit 0
+fi
+
+mime="$(file -bI -- "$path" 2>/dev/null || true)"
+kind="$(file -b -- "$path" 2>/dev/null || true)"
+
+case "$path" in
+*.plist | *.mobileconfig)
+    preview_plist "$path"
+    exit 0
+    ;;
+*.sqlite | *.sqlite3 | *.db)
+    preview_sqlite "$path"
+    exit 0
+    ;;
+*.zip | *.jar | *.war | *.ipa | *.tar | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz)
+    preview_archive "$path"
+    exit 0
+    ;;
+esac
+
+case "$mime" in
+text/* | \
+    application/json* | \
+    application/xml* | \
+    application/x-sh* | \
+    application/x-shellscript* | \
+    application/javascript* | \
+    application/x-javascript* | \
+    application/yaml* | \
+    application/toml*)
+    preview_text_file "$path"
+    ;;
+image/*)
+    preview_image "$path"
+    ;;
+application/pdf*)
+    preview_pdf "$path"
+    ;;
+application/zip* | application/x-tar* | application/gzip* | application/x-bzip2* | application/x-xz*)
+    preview_archive "$path"
+    ;;
+*)
+    case "$kind" in
+    *text* | *JSON* | *XML* | *script*)
+        preview_text_file "$path"
+        ;;
+    *)
+        file -- "$path"
+        ;;
+    esac
+    ;;
+esac
