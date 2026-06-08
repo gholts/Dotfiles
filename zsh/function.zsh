@@ -36,7 +36,6 @@ alias "tg"="eza -1a --git-ignore"
 #----------------------------------------------------------packages
 alias "vim"="nvim"
 alias "server"="bunx serve"
-alias "rime-install"="$HOME/plum/rime-install"
 alias "tailscale"="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 #---------------------------------------------------------xdg_alias
 alias "adb"="HOME=$XDG_DATA_HOME/android adb"
