@@ -3,6 +3,17 @@ local cmd, fn, api = vim.cmd, vim.fn, vim.api
 local M = {}
 
 --------------------------------------------------helper_functions
+function M.resize(amount)
+	return function()
+		cmd("resize " .. amount)
+	end
+end
+
+function M.vertical_resize(amount)
+	return function()
+		cmd("vertical resize " .. amount)
+	end
+end
 function M.fzf(action)
 	return function()
 		cmd.FzfLua(action)
@@ -17,7 +28,12 @@ end
 
 function M.toggle_oil_float()
 	return function()
-		require("oil").toggle_float()
+		require("oil").open_float(nil, {
+			preview = {
+				vertical = true,
+				split = "belowright",
+			},
+		})
 	end
 end
 
