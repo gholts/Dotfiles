@@ -29,6 +29,14 @@ zstyle ':completion:*' verbose yes                                          # Sh
 zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'                   # Enable case-insensitive completion
 zstyle ':completion:*' squeeze-slashes true                                 # Collapse duplicate slashes in paths
 zstyle ':completion:*' list-separator ''                                    # Hide separator between item and description
+zstyle ':completion:*' ignored-patterns \
+    '.DS_Store' '*/.DS_Store' \
+    '.localized' '*/.localized' \
+    '.CFUserTextEncoding' '*/.CFUserTextEncoding' \
+    '._*' '*/._*' \
+    '.AppleDouble' '*/.AppleDouble' \
+    '.idea' '*/.idea' \
+    '.vscode' '*/.vscode'                                                   # Hide noisy dotfiles from completion
 zstyle ':completion:*:options' list-colors '=(#b)(-[^ -]#)#( [^-]*)=0=0=33' # Highlight command options in completion lists
 #----------------------------------------------------------compinit
 autoload -Uz compinit                                  # Lazy-load the zsh completion initializer
@@ -47,6 +55,7 @@ fi
 zstyle ':fzf-tab:*' use-fzf-default-opts no                                 # Do not inherit global FZF_DEFAULT_OPTS
 zstyle ':fzf-tab:*' fzf-flags --height=60% --min-height=15 --layout=reverse # fzf-tab window layout and size
 zstyle ':fzf-tab:*' show-group full                                         # Show full completion group names
+zstyle ':fzf-tab:*' prefix ''                                               # Remove fzf-tab leading dot marker
 zstyle ':fzf-tab:*' switch-group ',' '.'                                    # Use comma/dot to switch between groups
 zstyle ':fzf-tab:complete:*:*' fzf-preview \
     '$XDG_CONFIG_HOME/bin/fzf/fzf-tab-preview "$realpath" "$word" "$group" "$desc"' # Universal preview script
