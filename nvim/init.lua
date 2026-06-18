@@ -25,6 +25,7 @@ pack.add({
 	"https://github.com/sphamba/smear-cursor.nvim",
 	"https://github.com/serhez/bento.nvim",
 	"https://github.com/stevearc/oil.nvim",
+	"https://github.com/malewicz1337/oil-git.nvim",
 	"https://github.com/ibhagwan/fzf-lua",
 	"https://github.com/nvim-mini/mini.nvim",
 	"https://github.com/chrishrb/gx.nvim",
