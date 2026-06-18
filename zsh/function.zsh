@@ -8,37 +8,31 @@ cdf() {
         echo "No open Finder window found"
     fi
 }
-#------------------------------------------------------smtart_touch
-mkfile() {
-    local file
-    for file in "$@"; do
-        [[ "$file" == -* ]] && {
-            command touch "$@"
-            return
-        }
-        mkdir -p -- "${file:h}"
-        command touch -- "$file"
-    done
-}
 #---------------------------------------------------------utilities
-alias "q"="exit"
-alias "cd"="z"
-alias ".."="cd ../"
-alias "..."="cd ../../"
-alias "...."="cd ../../../"
-alias "t"="mkfile"
+alias q="exit"
+alias cd="z"
+alias cd..="cd ../"
+alias ..="cd ../"
+alias ...="cd ../../"
+alias ....="cd ../../../"
 #------------------------------------------------------------eza/ls
-alias "eza"="eza -I='.DS_Store|.localized|.CFUserTextEncoding' --group-directories-last"
-alias "ls"="eza"
-alias "la"="eza -lah"
-alias "tree"="eza -T --level=4"
-alias "tg"="eza -1a --git-ignore"
+alias eza="eza -I='.DS_Store|.localized|.CFUserTextEncoding' --group-directories-last"
+alias ls="eza"
+alias la="eza -lah"
+alias tree="eza -T --level=4"
+alias tg="eza -1a --git-ignore"
 #----------------------------------------------------------packages
-alias "vim"="nvim"
-alias "server"="bunx serve"
-alias "tailscale"="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+alias vim="nvim"
+alias nvim.="nvim ."
+alias nvim,="nvim ."
+nvim() {
+    [[ $1 == , ]] && set -- .
+    command nvim "$@"
+}
+alias server="bunx serve"
+alias tailscale="/Applications/Tailscale.app/Contents/MacOS/Tailscale"
 #---------------------------------------------------------xdg_alias
-alias "adb"="HOME=$XDG_DATA_HOME/android adb"
-alias "wget"="wget --hsts-file=$XDG_DATA_HOME/wget-hsts"
-alias "mitmproxy"="mitmproxy --set confdir=$XDG_CONFIG_HOME/mitmproxy"
-alias "mitmweb"="mitmweb --set confdir=$XDG_CONFIG_HOME/mitmproxy"
+alias adb="HOME=$XDG_DATA_HOME/android adb"
+alias wget="wget --hsts-file=$XDG_DATA_HOME/wget-hsts"
+alias mitmproxy="mitmproxy --set confdir=$XDG_CONFIG_HOME/mitmproxy"
+alias mitmweb="mitmweb --set confdir=$XDG_CONFIG_HOME/mitmproxy"
