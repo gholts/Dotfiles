@@ -53,6 +53,7 @@ path=(
     $path
 )
 #------------------------------------------------------------------
+export __CF_USER_TEXT_ENCODING="0x0:0x0"                         # remove .CFUserTextEncoding file
 export SHELL_SESSIONS_DISABLE=1                                  # remove zsh_sessions file
 export HOMEBREW_NO_AUTO_UPDATE=1                                 # disable homebrew auto update
 export FZF_DEFAULT_OPTS_FILE="$XDG_CONFIG_HOME/fzf/config.fzfrc" # fzf config source
