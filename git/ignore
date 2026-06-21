@@ -2,12 +2,32 @@
 ._*
 .*.swp
 *.log
-# ---
+# System
 .Spotlight-V100
 .Trashes
 .DS_Store*
 ehthumbs.db
 Thumbs.db
-# ---
-.idea/*
-.vscode/*
+
+# build output
+dist/
+
+# generated types
+.astro/
+
+# dependencies
+node_modules/
+
+# logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-debug.log*
+
+# environment variables
+.env
+.env.production
+
+# blogs of sample
+.obsidian/
