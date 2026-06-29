@@ -4,3 +4,4 @@ ajeetdsouza/zoxide                                       # Smarter cd command ba
 zsh-users/zsh-autosuggestions                            # Show command suggestions from history while typing
 zdharma-continuum/fast-syntax-highlighting kind:defer    # Highlight commands, strings, paths, and errors while typing
 sukkaw/zsh-osx-autoproxy kind:defer                      # Automatically configure proxy environment variables on macOS
+romkatv/powerlevel10k                                    # A theme for Zsh

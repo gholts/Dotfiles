@@ -7,6 +7,10 @@
 #  ░░███  ░░███  ░███ ░███ ░███ ░███ ░███   ░███ ███ ░░░░███
 #   ░░█████████  ████ █████░░██████  █████  ░░█████  ██████
 #    ░░░░░░░░░  ░░░░ ░░░░░  ░░░░░░  ░░░░░    ░░░░░  ░░░░░░
+#-----------------------------------------------p10k_instant_prompt
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+    source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
 #------------------------------------------------------zsh_settings
 HISTSIZE=5000                          # Number of history entries kept in memory
 SAVEHIST=$HISTSIZE                     # Number of history entries saved to disk
@@ -22,13 +26,13 @@ setopt hist_find_no_dups               # Do not show duplicates when searching h
 setopt GLOB_DOTS                       # Include dotfiles in glob matches
 unsetopt CASE_GLOB                     # Make glob matching case-insensitive
 #-------------------------------------------------completion_styles
-zstyle ':completion:*:descriptions' format '[%d]'                           # Format completion group titles
-zstyle ':completion:*' menu no                                              # Disable native zsh menu UI for fzf-tab
-zstyle ':completion:*' group-name ''                                        # Group completion results by tag
-zstyle ':completion:*' verbose yes                                          # Show detailed completion descriptions
-zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}'                   # Enable case-insensitive completion
-zstyle ':completion:*' squeeze-slashes true                                 # Collapse duplicate slashes in paths
-zstyle ':completion:*' list-separator ''                                    # Hide separator between item and description
+zstyle ':completion:*:descriptions' format '[%d]'         # Format completion group titles
+zstyle ':completion:*' menu no                            # Disable native zsh menu UI for fzf-tab
+zstyle ':completion:*' group-name ''                      # Group completion results by tag
+zstyle ':completion:*' verbose yes                        # Show detailed completion descriptions
+zstyle ':completion:*' matcher-list 'm:{a-zA-Z}={A-Za-z}' # Enable case-insensitive completion
+zstyle ':completion:*' squeeze-slashes true               # Collapse duplicate slashes in paths
+zstyle ':completion:*' list-separator ''                  # Hide separator between item and description
 zstyle ':completion:*' ignored-patterns \
     '.DS_Store' '*/.DS_Store' \
     '.localized' '*/.localized' \
@@ -70,6 +74,7 @@ zstyle ':fzf-tab:complete:brew-(install|uninstall|search|info):*-argument-rest' 
 source "$HOMEBREW_PREFIX/opt/antidote/share/antidote/antidote.zsh" # Load antidote plugin manager
 antidote load                                                      # Load plugins from .zsh_plugins.txt
 #------------------------------------------------------------source
-(($+commands[starship])) && eval "$(starship init zsh)" # Initialize Starship prompt
-source "$ZDOTDIR/function.zsh"                          # Load custom shell functions
-source "$ZDOTDIR/keymap.zsh"                            # Load custom keybindings
+# (($+commands[starship])) && eval "$(starship init zsh)" # Initialize Starship prompt
+[[ ! -f ~/.config/zsh/.p10k.zsh ]] || source ~/.config/zsh/.p10k.zsh # Initialize p10k
+source "$ZDOTDIR/function.zsh"                                       # Load custom shell functions
+source "$ZDOTDIR/keymap.zsh"                                         # Load custom keybindings
