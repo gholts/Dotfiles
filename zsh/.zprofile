@@ -43,15 +43,20 @@ export NPM_CONFIG_TMP="$XDG_RUNTIME_DIR/npm"
 #--------------------------------------------------------------path
 typeset -U path PATH
 path=(
-    "${HOMEBREW_PREFIX:-/opt/homebrew}/opt/node@24/bin" # node
-    "$HOME/.cache/.bun/bin"                             # bun
-    "$HOME/.local/share/cargo/bin"                      # cargo
+    "${HOMEBREW_PREFIX:-/opt/homebrew}/opt/imagemagick-full/bin" # imagemagick
+    "${HOMEBREW_PREFIX:-/opt/homebrew}/opt/node@24/bin"          # node
+    "$HOME/.cache/.bun/bin"                                      # bun
+    "$HOME/.local/share/cargo/bin"                               # cargo
     "$HOME/.config/bin"
     "$HOME/.local/bin"
     "${HOMEBREW_PREFIX:-/opt/homebrew}/bin"
     "${HOMEBREW_PREFIX:-/opt/homebrew}/sbin"
     $path
 )
+#--------------------------------------------------imagemagick-full
+export LDFLAGS="-L${HOMEBREW_PREFIX:-/opt/homebrew}/opt/imagemagick-full/lib${LDFLAGS:+ $LDFLAGS}"
+export CPPFLAGS="-I${HOMEBREW_PREFIX:-/opt/homebrew}/opt/imagemagick-full/include${CPPFLAGS:+ $CPPFLAGS}"
+export PKG_CONFIG_PATH="${HOMEBREW_PREFIX:-/opt/homebrew}/opt/imagemagick-full/lib/pkgconfig${PKG_CONFIG_PATH:+:$PKG_CONFIG_PATH}"
 #------------------------------------------------------------------
 export __CF_USER_TEXT_ENCODING="0x0:0x0"                         # remove .CFUserTextEncoding file
 export SHELL_SESSIONS_DISABLE=1                                  # remove zsh_sessions file
