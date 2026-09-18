@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         Twitch Stability Kit
 // @namespace    gholts.twitch.stability-kit
-// @version      2026.08.06.9
-// @description  Ad suppression, max quality, channel points, live recovery, UI cleanup, and gentle playback keepalive for Twitch.
+// @version      2026.09.19.1
+// @description  Ad suppression, max quality, channel points, live recovery, UI cleanup, and gentle playback keepalive for Twitch and MultiTwitch embeds.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
 // @homepageURL  https://github.com/Gholts/Dotfiles/tree/main/bin/userscript
 // @updateURL    https://raw.githubusercontent.com/Gholts/Dotfiles/main/bin/userscript/twitch-stability-kit.user.js
 // @downloadURL  https://raw.githubusercontent.com/Gholts/Dotfiles/main/bin/userscript/twitch-stability-kit.user.js
 // @match        https://www.twitch.tv/*
+// @match        https://twitch.tv/embed/*
 // @match        https://player.twitch.tv/*
 // @match        https://embed.twitch.tv/*
 // @icon         https://assets.twitch.tv/assets/favicon-32-e29e246c157142c94346.png
@@ -27,6 +28,8 @@
 // License: MIT
 (function() {
     'use strict';
+    // Chat-only frames (including MultiTwitch) need no player or visibility hooks.
+    if (/^\/embed\/[^/]+\/chat\/?$/.test(location.pathname)) return;
     const adPage = typeof unsafeWindow === 'object' ? unsafeWindow : window;
     const ourTwitchAdSolutionsVersion = 24;// Used to prevent conflicts with outdated versions of the scripts
     if (typeof adPage.twitchAdSolutionsVersion !== 'undefined' && adPage.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
@@ -1136,7 +1139,7 @@
 (() => {
     "use strict";
 
-    const VERSION = "2026.08.06.9";
+    const VERSION = "2026.09.19.1";
 
     const DEFAULTS = Object.freeze({
         maxQuality: true,
@@ -1209,13 +1212,9 @@
 
     const host = location.hostname;
     const path = location.pathname || "";
-    const isFrame = (() => {
-        try {
-            return window.frameElement !== null;
-        } catch {
-            return true;
-        }
-    })();
+    // frameElement is null for cross-origin frames, too.
+    const isFrame = window.self !== window.top;
+    const isChatEmbed = /^\/embed\/[^/]+\/chat\/?$/.test(path);
     const isEmbed =
         host === "player.twitch.tv" ||
         host === "embed.twitch.tv" ||
@@ -1282,6 +1281,7 @@
     let lastMainVideo = null;
 
     function getPlayerRoot() {
+        if (isChatEmbed) return null;
         const root = document.querySelector(PLAYER_ROOT_SELECTOR);
         if (root) return root;
         return isEmbed ? document.body : null;
