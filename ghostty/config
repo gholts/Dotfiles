@@ -8,6 +8,9 @@
 #   ░░█████████  ████ █████░░██████  █████  ░░█████  ██████
 #    ░░░░░░░░░  ░░░░ ░░░░░  ░░░░░░  ░░░░░    ░░░░░  ░░░░░░
 #------------------------------------------------------------------
+auto-update = check
+auto-update-channel = tip
+#------------------------------------------------------------------
 quit-after-last-window-closed = true
 window-save-state = always
 window-padding-balance = true
