@@ -14,6 +14,8 @@ while IFS=$'\t' read -r filename app_path; do
 
   plist=$app_path/Contents/Info.plist
   [[ -r $plist ]] || continue
+  bundle_id=$(/usr/bin/plutil -extract CFBundleIdentifier raw -o - "$plist" 2>/dev/null) || continue
+  [[ $bundle_id != com.gholts.current-browser.router ]] || continue
   url_types=$(/usr/bin/plutil -extract CFBundleURLTypes xml1 -o - "$plist" 2>/dev/null) || continue
   [[ $url_types == *'<string>http</string>'* && $url_types == *'<string>https</string>'* ]] || continue
   document_types=$(/usr/bin/plutil -extract CFBundleDocumentTypes xml1 -o - "$plist" 2>/dev/null) || continue

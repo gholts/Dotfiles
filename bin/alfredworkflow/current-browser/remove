@@ -1,0 +1,17 @@
+#!/bin/zsh
+set -euo pipefail
+
+app="$HOME/Applications/Current Browser.app"
+# Never leave macOS pointing to a deleted URL handler.
+for scheme in http https; do
+  handler=$(/usr/bin/osascript -l JavaScript -e 'ObjC.import("AppKit"); function run(a) { const u = $.NSWorkspace.sharedWorkspace.URLForApplicationToOpenURL($.NSURL.URLWithString(a[0] + "://example.com")); return ObjC.unwrap($.NSBundle.bundleWithURL(u).bundleIdentifier); }' "$scheme")
+  if [[ $handler == com.gholts.current-browser.router ]]; then
+    /usr/bin/open 'x-apple.systempreferences:com.apple.Desktop-Settings.extension'
+    /usr/bin/osascript -e 'display dialog "Choose your regular default browser first, then run cbremove again." buttons {"OK"} default button "OK" with title "Current Browser"'
+    exit 1
+  fi
+done
+/bin/launchctl bootout "gui/$UID/com.gholts.current-browser.router" 2>/dev/null || true
+/bin/rm -f "$HOME/Library/LaunchAgents/com.gholts.current-browser.router.plist"
+/bin/rm -rf -- "$app"
+print 'Current Browser helper removed.'

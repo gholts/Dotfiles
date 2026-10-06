@@ -1,0 +1,19 @@
+#!/bin/zsh
+set -euo pipefail
+workflow_dir=${0:A:h}
+output=${1:-/tmp/Current Browser.alfredworkflow}
+stage=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/current-browser.XXXXXX")
+trap '/bin/rm -rf -- "$stage"' EXIT
+app="$stage/Current Browser.app"
+/bin/mkdir -p "$app/Contents/MacOS"
+/usr/bin/clang -fobjc-arc -Wall -Wextra -Wno-unused-parameter -Werror -O2 \
+  -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 -framework AppKit \
+  "$workflow_dir/Router.m" -o "$app/Contents/MacOS/current-browser"
+/bin/cp "$workflow_dir/Router.plist" "$app/Contents/Info.plist"
+/usr/bin/codesign --force --sign - "$app"
+/bin/cp "$workflow_dir/"{info.plist,setup,remove,README.md} "$stage/"
+/bin/mkdir -p "${output:h}"
+archive=$stage/archive.alfredworkflow
+(cd "$stage" && /usr/bin/zip -q -r "$archive" . -x '*.alfredworkflow')
+/bin/mv -f "$archive" "$output"
+print -r -- "$output"

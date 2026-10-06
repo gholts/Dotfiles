@@ -1,0 +1,23 @@
+#!/bin/zsh
+set -euo pipefail
+
+workflow_dir=${0:A:h}
+app_dir=$HOME/Applications
+app="$app_dir/Current Browser.app"
+agent_dir=$HOME/Library/LaunchAgents
+agent=$agent_dir/com.gholts.current-browser.router.plist
+/bin/mkdir -p "$app_dir" "$agent_dir"
+# Stop the existing helper before replacing its executable.
+/bin/launchctl bootout "gui/$UID/com.gholts.current-browser.router" 2>/dev/null || true
+/bin/cp -R "$workflow_dir/Current Browser.app" "$app_dir/"
+"$app/Contents/MacOS/current-browser" --save-defaults
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$app"
+/usr/bin/plutil -create xml1 "$agent"
+/usr/bin/plutil -insert Label -string com.gholts.current-browser.router "$agent"
+/usr/bin/plutil -insert ProgramArguments -json '[]' "$agent"
+/usr/bin/plutil -insert ProgramArguments.0 -string "$app/Contents/MacOS/current-browser" "$agent"
+/usr/bin/plutil -insert RunAtLoad -bool YES "$agent"
+/usr/bin/plutil -insert KeepAlive -bool YES "$agent"
+/bin/launchctl bootstrap "gui/$UID" "$agent"
+/usr/bin/open 'x-apple.systempreferences:com.apple.Desktop-Settings.extension'
+/usr/bin/osascript -e 'display dialog "Saved your existing default browser. In System Settings → Desktop & Dock → Default web browser, choose Current Browser.\n\nAlfred searches and links now follow the active browser. Other apps’ default-browser links follow this routing too. Explicit browser choices retain priority.\n\nTo disable: choose your regular browser as default, then run cbremove." buttons {"OK"} default button "OK" with title "Current Browser Setup"'
