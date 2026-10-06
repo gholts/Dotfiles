@@ -80,3 +80,4 @@ antidote load                                                      # Load plugin
 [[ ! -f ~/.config/zsh/.p10k.zsh ]] || source ~/.config/zsh/.p10k.zsh # Initialize p10k
 source "$ZDOTDIR/function.zsh"                                       # Load custom shell functions
 source "$ZDOTDIR/keymap.zsh"                                         # Load custom keybindings
+source "$ZDOTDIR/ssh-tint.zsh"                                       # Tint interactive SSH sessions
