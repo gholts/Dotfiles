@@ -1,82 +1,109 @@
 #!/usr/bin/env bash
-#
-# The purpose of this script is to demonstrate how to preview a file or an
-# image in the preview window of fzf.
-#
-# Dependencies:
-# - https://github.com/sharkdp/bat
-# - https://github.com/hpjansson/chafa
+# Shared file previews for shell fzf, fzf-tab, and fzf-lua.
+set -o pipefail
 
-if [[ $# -ne 1 ]]; then
-    >&2 echo "usage: $0 FILENAME[:LINENO][:IGNORED]"
+preview_zip() {
+    unzip -l "$1" | sed -n '1,200p'
+}
+
+preview_pdf() {
+    local file=$1
+
+    if command -v pdftotext >/dev/null 2>&1; then
+        pdftotext -l 3 "$file" - | sed -n '1,200p'
+    elif command -v pdfinfo >/dev/null 2>&1; then
+        pdfinfo "$file"
+    else
+        file -- "$file"
+    fi
+}
+
+if (($# == 0)); then
+    printf 'usage: %s [BAT_OPTIONS...] FILE[:LINE[:COL]]\n' "$0" >&2
     exit 1
 fi
 
-file=${1/#\~\//$HOME/}
+# fzf-lua passes bat options first and the filename last.
+bat_options=()
+while (($# > 1)); do
+    bat_options+=("$1")
+    shift
+done
+file=$1
 
-center=0
-if [[ ! -r $file ]]; then
-    if [[ $file =~ ^(.+):([0-9]+)\ *$ ]] && [[ -r ${BASH_REMATCH[1]} ]]; then
+if [[ $file == '~/'* ]]; then
+    file="$HOME/${file:2}"
+fi
+
+# Prefer an existing filename, even if it contains colons. Otherwise, resolve
+# grep-style FILE:LINE:COL or FILE:LINE entries and highlight the matching line.
+if [[ ! -e "$file" ]]; then
+    if [[ $file =~ ^(.+):([0-9]+):([0-9]+)(:.*)?$ && -f ${BASH_REMATCH[1]} ]]; then
         file=${BASH_REMATCH[1]}
-        center=${BASH_REMATCH[2]}
-    elif [[ $file =~ ^(.+):([0-9]+):[0-9]+\ *$ ]] && [[ -r ${BASH_REMATCH[1]} ]]; then
+        bat_options+=("--highlight-line=${BASH_REMATCH[2]}")
+    elif [[ $file =~ ^(.+):([0-9]+)(:.*)?$ && -f ${BASH_REMATCH[1]} ]]; then
         file=${BASH_REMATCH[1]}
-        center=${BASH_REMATCH[2]}
+        bat_options+=("--highlight-line=${BASH_REMATCH[2]}")
     fi
+fi
+
+# Absolute paths also protect filenames beginning with '-' from option parsing.
+if [[ $file != /* ]]; then
+    file="$PWD/$file"
 fi
 
 if [[ -d "$file" ]]; then
-    if command -v eza >/dev/null; then
-        { eza --tree --level=3 --color=always --ignore-glob ".DS_Store|.localized|.idea|.vscode" "$file"; }
+    exec eza --oneline --all --tree --level=3 \
+        --group-directories-first --color=always \
+        --ignore-glob '.DS_Store|.localized|.idea|.vscode' -- "$file"
+fi
 
-    else
-        ls -laF "$file"
-    fi
+if [[ ! -f "$file" || ! -r "$file" ]]; then
+    exec file -- "$file"
+fi
+
+if [[ ! -s "$file" ]]; then
+    printf 'Empty file: %s\n' "$file"
+    exit 0
+fi
+
+# These formats have dedicated viewers.
+case "$file" in
+*.plist | *.mobileconfig)
+    exec plutil -p -- "$file"
+    ;;
+*.sqlite | *.sqlite3 | *.db)
+    exec sqlite3 -readonly "$file" '.tables' \
+        'SELECT name, type FROM sqlite_master ORDER BY type, name LIMIT 50;'
+    ;;
+*.zip | *.jar | *.war | *.ipa)
+    preview_zip "$file"
     exit
-fi
-
-type=$(file --brief --dereference --mime -- "$file")
-
-if [[ ! $type =~ image/ ]]; then
-    if [[ $type =~ =binary ]]; then
-        file "$1"
-        exit
-    fi
-
-    # Sometimes bat is installed as batcat.
-    if command -v batcat >/dev/null; then
-        batname="batcat"
-    elif command -v bat >/dev/null; then
-        batname="bat"
-    else
-        cat "$1"
-        exit
-    fi
-
-    ${batname} --style="${BAT_STYLE:-numbers}" --color=always --pager=never --highlight-line="${center:-0}" -- "$file"
+    ;;
+*.tar | *.tar.gz | *.tgz | *.tar.bz2 | *.tbz2 | *.tar.xz | *.txz)
+    tar -tf "$file" | sed -n '1,200p'
     exit
-fi
+    ;;
+esac
 
-dim=${FZF_PREVIEW_COLUMNS}x${FZF_PREVIEW_LINES}
-if [[ $dim == x ]]; then
-    dim=$(stty size </dev/tty | awk '{print $2 "x" $1}')
-elif ! [[ $KITTY_WINDOW_ID ]] && ((FZF_PREVIEW_TOP + FZF_PREVIEW_LINES == $(stty size </dev/tty | awk '{print $1}'))); then
-    # Avoid scrolling issue when the Sixel image touches the bottom of the screen
-    # * https://github.com/junegunn/fzf/issues/2544
-    dim=${FZF_PREVIEW_COLUMNS}x$((FZF_PREVIEW_LINES - 1))
-fi
-
-# 1. Use icat (from Kitty) if kitten is installed
-if [[ $KITTY_WINDOW_ID ]] || [[ $GHOSTTY_RESOURCES_DIR ]] && command -v kitten >/dev/null; then
-    # 1. 'memory' is the fastest option but if you want the image to be scrollable,
-    #    you have to use 'stream'.
-    #
-    # 2. The last line of the output is the ANSI reset code without newline.
-    #    This confuses fzf and makes it render scroll offset indicator.
-    #    So we remove the last line and append the reset code to its previous line.
-    kitten icat --clear --transfer-mode=memory --unicode-placeholder --stdin=no --place="$dim@0x0" "$file" | sed '$d' | sed $'$s/$/\e[m/'
-
-# 4. Cannot find any suitable method to preview the image
-else
-    file "$file"
-fi
+# Inspect contents so images and ZIP archives work without a file extension.
+mime=$(file --brief --dereference --mime -- "$file")
+case "$mime" in
+image/*)
+    exec "${BASH_SOURCE[0]%/*}/preview-image" "$file"
+    ;;
+application/pdf*)
+    preview_pdf "$file"
+    ;;
+application/zip*)
+    preview_zip "$file"
+    ;;
+*charset=binary*)
+    file -- "$file"
+    ;;
+*)
+    exec bat --color=always --paging=never \
+        --theme="${BAT_THEME:-ansi}" --style=numbers,changes \
+        "${bat_options[@]}" -- "$file"
+    ;;
+esac

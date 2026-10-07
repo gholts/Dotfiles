@@ -62,16 +62,11 @@ zstyle ':fzf-tab:*' show-group full                                         # Sh
 zstyle ':fzf-tab:*' prefix ''                                               # Remove fzf-tab leading dot marker
 zstyle ':fzf-tab:*' switch-group ',' '.'                                    # Use comma/dot to switch between groups
 zstyle ':fzf-tab:complete:*:*' fzf-preview \
-    '$XDG_CONFIG_HOME/bin/fzf/fzf-tab-preview "$realpath" "$word" "$group" "$desc"' # Universal preview script
+    '"$XDG_CONFIG_HOME/bin/fzf/fzf-tab-preview" "$realpath" "$word" "$group" "$desc"' # Shared file and completion previews
 #-------------------------------------------expand_alias_completion
 zstyle ':completion:*' completer _expand_alias _complete _ignored
 #------------------------------------------macos_process_completion
 zstyle ':completion:*:*:*:*:processes' command 'ps -u "$USER" -o pid,user,command -w' # Use macOS-compatible process listing
-zstyle ':fzf-tab:complete:(kill|ps):argument-rest' fzf-preview \
-    'ps -p "$word" -o pid= -o ppid= -o user= -o %cpu= -o %mem= -o etime= -o stat= -o command= 2>/dev/null' # Preview selected process details
-#---------------------------------------homebrew_completion_preview
-zstyle ':fzf-tab:complete:brew-(install|uninstall|search|info):*-argument-rest' \
-    fzf-preview 'HOMEBREW_COLOR=1 brew info "$word" 2>/dev/null' # Preview Homebrew formula/cask info
 #----------------------------------------------------------antidote
 source "$HOMEBREW_PREFIX/opt/antidote/share/antidote/antidote.zsh" # Load antidote plugin manager
 antidote load                                                      # Load plugins from .zsh_plugins.txt
