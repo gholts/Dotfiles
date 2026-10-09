@@ -58,6 +58,16 @@ local lsp_servers_config = {
 	html = {},
 	jsonls = {},
 	ruff = {},
+	surge = {
+		cmd = { "/Applications/Surge.app/Contents/Applications/surge-cli", "lsp", "--stdio" },
+		filetypes = { "surge", "surge.module", "surge.ruleset" },
+		-- Compound filetypes share syntax/ftplugin; the server uses hyphenated IDs.
+		get_language_id = function(_, filetype)
+			return (filetype:gsub("%.", "-"))
+		end,
+		-- No workspace root: main profiles and detached files share one server.
+	},
+	ts_ls = {},
 	yamlls = {},
 	lua_ls = {
 		settings = {
@@ -88,15 +98,17 @@ local lsp_servers_config = {
 	},
 }
 
-local lsp_servers = {}
+local mason_servers = {}
 for name, config in pairs(lsp_servers_config) do
-	table.insert(lsp_servers, name)
+	if name ~= "surge" then -- Installed with Surge.app, outside Mason.
+		table.insert(mason_servers, name)
+	end
 	config.capabilities = capabilities
 	vim.lsp.config(name, config)
 end
 
-require("mason-lspconfig").setup({ ensure_installed = lsp_servers })
-vim.lsp.enable(lsp_servers)
+require("mason-lspconfig").setup({ ensure_installed = mason_servers })
+vim.lsp.enable(vim.tbl_keys(lsp_servers_config))
 
 ---------------------------------------------------------------cmp
 require("cmp-tailwind-colors").setup({
