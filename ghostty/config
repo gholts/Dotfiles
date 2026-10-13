@@ -36,6 +36,8 @@ window-inherit-working-directory = false
 tab-inherit-working-directory = false
 split-inherit-working-directory = true
 #------------------------------------------------------------------
+keybind = super+c=copy_to_clipboard
+keybind = super+v=paste_from_clipboard
 keybind = global:opt+tab=toggle_quick_terminal
 #--------------------------------------------------------goto_split
 keybind = unconsumed:opt+control+h=goto_split:left
