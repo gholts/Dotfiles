@@ -19,6 +19,7 @@ o.expandtab = true -- make <Tab> actually type space
 o.autocomplete = false -- native autocomplete
 o.clipboard = "unnamedplus" -- make (y),(p) directly work with system clipboard
 o.smartindent = true -- like smart indent
+o.ignorecase = true
 o.smartcase = true -- like smart auto case insensitive
 o.smoothscroll = true
 o.autochdir = false -- automatically change current dir
