@@ -1,6 +1,6 @@
 #------------------------------------------------------------widget
 copy-command() {
-    echo -n "$BUFFER" | pbcopy
+    printf '%s' "$BUFFER" | pbcopy
 }
 #---------------------------------------------------register_widget
 zle -N copy-command
