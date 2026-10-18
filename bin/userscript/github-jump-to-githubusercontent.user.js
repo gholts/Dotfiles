@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub Raw Jump Kit
 // @namespace    gholts.github.jump-to-githubusercontent
-// @version      2026.07.30.2
+// @version      2026.10.19.1
 // @description  Add GitHub-style jumps between blob pages and raw.githubusercontent.com.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -41,7 +41,6 @@
         "font-weight:500",
         "justify-content:center",
         "line-height:18px",
-        "margin-left:8px",
         "min-height:28px",
         "padding:3px 8px",
         "text-decoration:none",
