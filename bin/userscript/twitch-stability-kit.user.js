@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitch Stability Kit
 // @namespace    gholts.twitch.stability-kit
-// @version      2026.10.28.2
+// @version      2026.10.28.5
 // @description  Live rewind, VOD playback, ad suppression, max quality, channel points, UI cleanup, and playback keepalive for Twitch and MultiTwitch embeds.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -1147,7 +1147,7 @@
 (() => {
     "use strict";
 
-    const VERSION = "2026.10.28.2";
+    const VERSION = "2026.10.28.5";
 
     const DEFAULTS = Object.freeze({
         rewind: true,
@@ -1666,6 +1666,7 @@
     // renders and owns the seekbar, time labels, previews, shortcuts and LIVE.
     function createRewind() {
         let session = null;
+        let pendingSeek = null;
 
         function context() {
             for (let node = getReactFiber(); node; node = node.return) {
@@ -1704,6 +1705,7 @@
         }
 
         function reset() {
+            pendingSeek = null;
             if (session) {
                 restore(session);
                 session.abort.abort();
@@ -1782,6 +1784,7 @@
         }
 
         function update() {
+            if (pendingSeek && !pendingSeek.bar.isConnected) pendingSeek = null;
             const value = context();
             const content = value?.content;
             const route = channelFromUrl();
@@ -1804,8 +1807,46 @@
             check(session);
         }
 
+        function seekBy(seconds) {
+            const content = context()?.content;
+            if (!CONFIG.rewind || !content?.channelLogin ||
+                channelFromUrl() !== content.channelLogin.toLowerCase() ||
+                !(content.type === "live" ? content.dvrVideoID : content.isDVR)) return false;
+            const bar = getPlayerRoot()?.querySelector('[data-a-target="player-seekbar"]');
+            if (!bar) return false; // Native controls remove this during ads.
+            for (let node = getReactFiber(bar); node; node = node.return) {
+                const props = node.memoizedProps;
+                if (typeof props?.onThumbLocationChange !== "function" ||
+                    ![props.seekbarMin, props.seekbarMax, props.vodLength, props.thumbLocation].every(Number.isFinite) ||
+                    props.vodLength < props.seekbarMin) continue;
+                // Older native seek completions can overwrite the thumb mid-burst.
+                const position = pendingSeek?.bar === bar ? pendingSeek.target : props.thumbLocation;
+                // The newest recording ends before live; skip that unavailable gap.
+                let target = Math.max(props.seekbarMin, position + seconds);
+                if (seconds < 0) target = Math.min(target, props.vodLength);
+                else if (target >= props.vodLength) {
+                    // Native LIVE changes content; a media seek into the gap cannot.
+                    const live = bar.parentElement?.parentElement?.querySelector('[role="button"]');
+                    pendingSeek = null;
+                    if (live) live.click();
+                    return !!live || content.type === "live";
+                }
+                pendingSeek = { bar, target };
+                props.onThumbLocationChange(target);
+                return true;
+            }
+            return false;
+        }
+
         window.addEventListener("pagehide", reset);
-        return { update, get active() { const content = context()?.content; return content?.type !== "live" && !!content?.isDVR; } };
+        return {
+            update, seekBy,
+            cancelSeek() { pendingSeek = null; },
+            finishSeek(video) {
+                if (pendingSeek && !video.seeking && Math.abs(video.currentTime - pendingSeek.target) < 1) pendingSeek = null;
+            },
+            get active() { const content = context()?.content; return content?.type !== "live" && !!content?.isDVR; },
+        };
     }
 
     const backToLivePatterns = [
@@ -2183,6 +2224,7 @@
             "playing",
             () => {
                 if (!isManagedVideo(video)) return;
+                rewind.finishSeek(video);
                 wasPlaying = true;
                 rewind.update();
                 burstQuality(6000);
@@ -2191,6 +2233,9 @@
             },
             true,
         );
+        video.addEventListener("seeked", () => {
+            if (isManagedVideo(video)) rewind.finishSeek(video);
+        });
         video.addEventListener(
             "pause",
             () => {
@@ -2486,6 +2531,7 @@
         "pointerdown",
         (event) => {
             if (event.target?.closest?.(PLAYER_ROOT_SELECTOR)) {
+                rewind.cancelSeek();
                 lastPlayerInputAt = Date.now();
             }
         },
@@ -2508,11 +2554,23 @@
                 return;
             if (
                 event.defaultPrevented ||
+                event.isComposing ||
                 event.metaKey ||
                 event.ctrlKey ||
                 event.altKey
             )
                 return;
+            if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !event.shiftKey) {
+                const root = getPlayerRoot();
+                if (target !== document.body && target !== document.documentElement && !root?.contains(target)) return;
+                if (target?.closest?.('[contenteditable], [role="textbox"], [role="slider"], [role="menu"], [role="dialog"], button[aria-expanded="true"]')) return;
+                if (rewind.seekBy(event.key === "ArrowLeft" ? -10 : 10)) {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                }
+                return;
+            }
+            rewind.cancelSeek();
             if (event.key === " " || event.key?.toLowerCase() === "k")
                 if (getMainVideo()) lastPlayerInputAt = Date.now();
         },

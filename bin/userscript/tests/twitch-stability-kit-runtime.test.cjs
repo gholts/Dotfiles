@@ -63,7 +63,7 @@ function runtimeHarness() {
     const startup = main.indexOf('    injectRuntimeCss();\n    injectCleanerCss();\n    patchNavigation();');
     const events = main.slice(main.indexOf('    document.addEventListener(\n        "pointerdown"', startup), main.indexOf('    onceBody(() =>', startup));
     main = main.slice(0, startup) + events + `\nthis.runtime = {
-        CONFIG, findPlayer, wrapCounterWriter, optimizeAnimatedNumbers, forceBestQuality, recordQualityStall, claimPoints,
+        CONFIG, rewind, findPlayer, wrapCounterWriter, optimizeAnimatedNumbers, forceBestQuality, recordQualityStall, claimPoints,
         hasNonChatMutation, ensurePiPButton, updatePiPKeepalive, bindVideo,
         recoverPlaybackSoon, resumeVideo, requestWakeLock, releaseWakeLock, isDocumentHidden,
         get wasPlaying() { return wasPlaying; }, set wasPlaying(value) { wasPlaying = value; },
@@ -75,6 +75,44 @@ function runtimeHarness() {
     h.runTimeouts = () => { const pending = [...h.timers.values()]; h.timers.clear(); pending.forEach(t => t.fn()); };
     return h;
 }
+
+test('live arrow handler runs before native shortcut and consumes only successful seeks', () => {
+    const h = runtimeHarness(), calls = [];
+    h.document.body = {};
+    h.runtime.rewind.seekBy = value => { calls.push(value); return true; };
+    const handle = h.document.listeners.get('keydown');
+    const event = { key: 'ArrowLeft', target: h.document.body, preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+    handle(event);
+    assert.deepEqual(calls, [-10]);
+    assert.equal(event.prevented, true);
+    assert.equal(event.stopped, true);
+    // Twitch gives ordinary Play/Pause controls aria-haspopup="menu", too.
+    h.video.closest = selector => selector.includes('[aria-haspopup]') ? {} : null;
+    handle({ ...event, key: 'ArrowRight', target: h.video });
+    assert.deepEqual(calls, [-10, 10]);
+    h.runtime.rewind.seekBy = () => false;
+    const unhandled = { ...event, key: 'ArrowRight', prevented: false, stopped: false };
+    handle(unhandled);
+    assert.equal(unhandled.prevented, false);
+    assert.equal(unhandled.stopped, false);
+});
+
+test('live arrow handler preserves text editing, chat, widgets, modifiers and composition', () => {
+    const h = runtimeHarness();
+    h.document.body = {};
+    h.runtime.rewind.seekBy = () => { throw new Error('unrelated key intercepted'); };
+    const handle = h.document.listeners.get('keydown');
+    for (const patch of [
+        { target: { tagName: 'INPUT' } }, { target: { isContentEditable: true } },
+        { target: { tagName: 'BUTTON' } }, // Chat/sidebar focus lies outside player.
+        { target: h.video },
+        { shiftKey: true }, { metaKey: true }, { ctrlKey: true }, { altKey: true },
+        { isComposing: true }, { defaultPrevented: true },
+    ]) {
+        h.video.closest = () => ({}); // A focused slider/menu/dialog inside player.
+        handle({ key: 'ArrowLeft', target: h.document.body, ...patch });
+    }
+});
 
 test('quality uses SDK Quality object and exits automatic mode even when current rendition is highest', () => {
     const h = runtimeHarness();

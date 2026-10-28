@@ -41,10 +41,89 @@ function harness() {
         getPlayerRoot: () => root, log() {},
     });
     const code = between('    function getReactFiber(', '    function findPlayer()') + between('    function createRewind()', '    const backToLivePatterns');
-    vm.runInContext(code.replace('return { update, get active()', 'return { update, context, get session() { return session; }, get active()') + '\nthis.rewind = createRewind();', context);
+    vm.runInContext(code.replace('update, seekBy,', 'update, seekBy, context, get session() { return session; },') + '\nthis.rewind = createRewind();', context);
     return { env, document, window, root, fiber, top, provider, location, CONFIG, rewind: context.rewind, get content() { return provider.memoizedProps.value.content; } };
 }
 async function started() { const h = harness(); h.rewind.update(); await flush(); return h; }
+
+function nativeSeekbar(h) {
+    const calls = [];
+    const live = { clicks: 0, click() { this.clicks++; } };
+    const props = { seekbarMin: 0, seekbarMax: 1000, vodLength: 970, thumbLocation: 1000,
+        onThumbLocationChange(value) { calls.push(value); props.thumbLocation = value; } };
+    const bar = { isConnected: true, __reactFiber$test: { memoizedProps: props } };
+    bar.parentElement = { parentElement: { querySelector: () => live } };
+    h.root.querySelector = () => bar;
+    h.content.dvrVideoID = 'native';
+    return { calls, props, live, bar };
+}
+
+test('live arrow seek crosses recording gap immediately and rapid presses use pending native thumb', () => {
+    const h = harness(), { calls } = nativeSeekbar(h);
+    assert.equal(h.rewind.seekBy(-10), true);
+    h.rewind.seekBy(-10);
+    h.rewind.seekBy(-10);
+    h.rewind.seekBy(10);
+    assert.deepEqual(calls, [970, 960, 950, 960]);
+    assert.equal(h.env.requests.length, 0);
+});
+
+test('older native seek completions cannot lose rapid keys; matching completion releases pending target', () => {
+    const h = harness(), { calls, props } = nativeSeekbar(h);
+    h.rewind.seekBy(-10);
+    h.rewind.seekBy(-10);
+    props.thumbLocation = 970; // First seek finishes after second request.
+    h.rewind.finishSeek({ currentTime: 970, seeking: false });
+    h.rewind.seekBy(-10);
+    h.rewind.seekBy(10);
+    assert.deepEqual(calls, [970, 960, 950, 960]);
+    h.rewind.finishSeek({ currentTime: 960, seeking: false });
+    props.thumbLocation = 965; // Playback advances after completion.
+    h.rewind.seekBy(-10);
+    assert.equal(calls.at(-1), 955);
+    h.rewind.cancelSeek();
+    props.thumbLocation = 500; // Pointer seek takes ownership.
+    h.rewind.seekBy(-10);
+    assert.equal(calls.at(-1), 490);
+});
+
+test('live arrow seek clamps recording start and hands live-edge return to native seekbar', () => {
+    const h = harness(), { calls, props, live } = nativeSeekbar(h);
+    Object.assign(h.content, { type: 'video', isDVR: true, vodID: 'native' });
+    props.thumbLocation = 4;
+    h.rewind.seekBy(-10);
+    props.thumbLocation = 965;
+    h.rewind.cancelSeek();
+    h.rewind.seekBy(10);
+    assert.deepEqual(calls, [0]);
+    assert.equal(live.clicks, 1);
+});
+
+test('right at live edge stays live; missing native return control leaves DVR keyboard handling untouched', () => {
+    const h = harness(), { calls, bar } = nativeSeekbar(h);
+    bar.parentElement.parentElement.querySelector = () => null;
+    assert.equal(h.rewind.seekBy(10), true);
+    Object.assign(h.content, { type: 'video', isDVR: true });
+    assert.equal(h.rewind.seekBy(10), false);
+    assert.deepEqual(calls, []);
+});
+
+test('arrow adapter leaves standalone VODs, disabled rewind, ads and unsupported seekbars alone', () => {
+    const h = harness(), { calls, props } = nativeSeekbar(h);
+    h.location.pathname = '/videos/100';
+    assert.equal(h.rewind.seekBy(-10), false);
+    h.location.pathname = '/atrioc';
+    h.CONFIG.rewind = false;
+    assert.equal(h.rewind.seekBy(-10), false);
+    h.CONFIG.rewind = true;
+    props.vodLength = -1;
+    assert.equal(h.rewind.seekBy(-10), false);
+    props.vodLength = NaN;
+    assert.equal(h.rewind.seekBy(-10), false);
+    h.root.querySelector = () => null;
+    assert.equal(h.rewind.seekBy(-10), false);
+    assert.deepEqual(calls, []);
+});
 
 test('public recording enables native DVR through content context; no custom DOM or player loader', async () => {
     const h = await started();
