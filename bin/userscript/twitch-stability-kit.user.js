@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Twitch Stability Kit
 // @namespace    gholts.twitch.stability-kit
-// @version      2026.10.28.5
-// @description  Live rewind, VOD playback, ad suppression, max quality, channel points, UI cleanup, and playback keepalive for Twitch and MultiTwitch embeds.
+// @version      2026.10.28.8
+// @description  7TV emotes, ad suppression, max quality, channel points, UI cleanup, and playback keepalive for Twitch and MultiTwitch embeds.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
 // @homepageURL  https://github.com/Gholts/Dotfiles/tree/main/bin/userscript
@@ -27,33 +27,41 @@
 // Source: https://github.com/pixeltris/TwitchAdSolutions/tree/f8f86706daf90daa534b26bce5b2f01238667d5f/vaft
 // License: MIT
 // Local fixes: worker cleanup, bounded player lookup, async playlist handling, VOD fallback.
-(function() {
-    'use strict';
+(function () {
+    "use strict";
     // Chat-only frames (including MultiTwitch) need no player or visibility hooks.
     if (/^\/embed\/[^/]+\/chat\/?$/.test(location.pathname)) return;
-    const adPage = typeof unsafeWindow === 'object' ? unsafeWindow : window;
-    const ourTwitchAdSolutionsVersion = 24;// Used to prevent conflicts with outdated versions of the scripts
-    if (typeof adPage.twitchAdSolutionsVersion !== 'undefined' && adPage.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
-        console.log("skipping vaft as there's another script active. ourVersion:" + ourTwitchAdSolutionsVersion + " activeVersion:" + adPage.twitchAdSolutionsVersion);
+    const adPage = typeof unsafeWindow === "object" ? unsafeWindow : window;
+    const ourTwitchAdSolutionsVersion = 24; // Used to prevent conflicts with outdated versions of the scripts
+    if (
+        typeof adPage.twitchAdSolutionsVersion !== "undefined" &&
+        adPage.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion
+    ) {
+        console.log(
+            "skipping vaft as there's another script active. ourVersion:" +
+                ourTwitchAdSolutionsVersion +
+                " activeVersion:" +
+                adPage.twitchAdSolutionsVersion,
+        );
         return;
     }
     adPage.twitchAdSolutionsVersion = ourTwitchAdSolutionsVersion;
     function declareOptions(scope) {
-        scope.AdSignifier = 'stitched';
-        scope.ClientID = 'kimne78kx3ncx6brgo4mv6wki5h1ko';
+        scope.AdSignifier = "stitched";
+        scope.ClientID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
         scope.BackupPlayerTypes = [
-            'embed',//Source
-            'popout',//Source
-            'autoplay',//360p
+            "embed", //Source
+            "popout", //Source
+            "autoplay", //360p
             //'picture-by-picture-CACHED'//360p (-CACHED is an internal suffix and is removed)
         ];
-        scope.FallbackPlayerType = 'embed';
-        scope.ForceAccessTokenPlayerType = 'popout';
-        scope.SkipPlayerReloadOnHevc = false;// If true this will skip player reload on streams which have 2k/4k quality (if you enable this and you use the 2k/4k quality setting you'll get error #4000 / #3000 / spinning wheel on chrome based browsers)
-        scope.AlwaysReloadPlayerOnAd = false;// Always pause/play when entering/leaving ads
-        scope.ReloadPlayerAfterAd = true;// After the ad finishes do a player reload instead of pause/play
+        scope.FallbackPlayerType = "embed";
+        scope.ForceAccessTokenPlayerType = "popout";
+        scope.SkipPlayerReloadOnHevc = false; // If true this will skip player reload on streams which have 2k/4k quality (if you enable this and you use the 2k/4k quality setting you'll get error #4000 / #3000 / spinning wheel on chrome based browsers)
+        scope.AlwaysReloadPlayerOnAd = false; // Always pause/play when entering/leaving ads
+        scope.ReloadPlayerAfterAd = true; // After the ad finishes do a player reload instead of pause/play
         scope.PlayerReloadMinimalRequestsTime = 1500;
-        scope.PlayerReloadMinimalRequestsPlayerIndex = 2;//autoplay
+        scope.PlayerReloadMinimalRequestsPlayerIndex = 2; //autoplay
         scope.HasTriggeredPlayerReload = false;
         scope.StreamInfos = [];
         scope.StreamInfosByUrl = [];
@@ -63,14 +71,14 @@
         scope.ClientIntegrityHeader = null;
         scope.AuthorizationHeader = undefined;
         scope.SimulatedAdsDepth = 0;
-        scope.PlayerBufferingFix = true;// If true this will pause/play the player when it gets stuck buffering
-        scope.PlayerBufferingDelay = 600;// How often should we check the player state (in milliseconds)
-        scope.PlayerBufferingSameStateCount = 3;// How many times of seeing the same player state until we trigger pause/play (it will only trigger it one time until the player state changes again)
-        scope.PlayerBufferingDangerZone = 1;// The buffering time left (in seconds) when we should ignore the players playback position in the player state check
-        scope.PlayerBufferingDoPlayerReload = false;// If true this will do a player reload instead of pause/play (player reloading is better at fixing the playback issues but it takes slightly longer)
-        scope.PlayerBufferingMinRepeatDelay = 8000;// Minimum delay (in milliseconds) between each pause/play (this is to avoid over pressing pause/play when there are genuine buffering problems)
-        scope.PlayerBufferingPrerollCheckEnabled = false;// Enable this if you're getting an immediate pause/play/reload as you open a stream (which is causing the stream to take longer to load). One problem with this being true is that it can cause the player to get stuck in some instances requiring the user to press pause/play
-        scope.PlayerBufferingPrerollCheckOffset = 5;// How far the stream need to move before doing the buffering mitigation (depends on PlayerBufferingPrerollCheckEnabled being true)
+        scope.PlayerBufferingFix = true; // If true this will pause/play the player when it gets stuck buffering
+        scope.PlayerBufferingDelay = 600; // How often should we check the player state (in milliseconds)
+        scope.PlayerBufferingSameStateCount = 3; // How many times of seeing the same player state until we trigger pause/play (it will only trigger it one time until the player state changes again)
+        scope.PlayerBufferingDangerZone = 1; // The buffering time left (in seconds) when we should ignore the players playback position in the player state check
+        scope.PlayerBufferingDoPlayerReload = false; // If true this will do a player reload instead of pause/play (player reloading is better at fixing the playback issues but it takes slightly longer)
+        scope.PlayerBufferingMinRepeatDelay = 8000; // Minimum delay (in milliseconds) between each pause/play (this is to avoid over pressing pause/play when there are genuine buffering problems)
+        scope.PlayerBufferingPrerollCheckEnabled = false; // Enable this if you're getting an immediate pause/play/reload as you open a stream (which is causing the stream to take longer to load). One problem with this being true is that it can cause the player to get stuck in some instances requiring the user to press pause/play
+        scope.PlayerBufferingPrerollCheckOffset = 5; // How far the stream need to move before doing the buffering mitigation (depends on PlayerBufferingPrerollCheckEnabled being true)
         scope.V2API = false;
         scope.IsAdStrippingEnabled = true;
         scope.AdSegmentCache = new Map();
@@ -80,14 +88,14 @@
     let localStorageHookFailed = false;
     const twitchWorkers = new Set();
     const workerStringConflicts = [
-        'twitch',
-        'isVariantA'// TwitchNoSub
+        "twitch",
+        "isVariantA", // TwitchNoSub
     ];
     const workerStringAllow = [];
     const workerStringReinsert = [
-        'isVariantA',// TwitchNoSub (prior to (0.9))
-        'besuper/',// TwitchNoSub (0.9)
-        '${patch_url}'// TwitchNoSub (0.9.1)
+        "isVariantA", // TwitchNoSub (prior to (0.9))
+        "besuper/", // TwitchNoSub (0.9)
+        "${patch_url}", // TwitchNoSub (0.9.1)
     ];
     function getCleanWorker(worker) {
         let root = null;
@@ -95,7 +103,10 @@
         let proto = worker;
         while (proto) {
             const workerString = proto.toString();
-            if (workerStringConflicts.some((x) => workerString.includes(x)) && !workerStringAllow.some((x) => workerString.includes(x))) {
+            if (
+                workerStringConflicts.some((x) => workerString.includes(x)) &&
+                !workerStringAllow.some((x) => workerString.includes(x))
+            ) {
                 if (parent !== null) {
                     Object.setPrototypeOf(parent, Object.getPrototypeOf(proto));
                 }
@@ -116,7 +127,6 @@
             const workerString = proto.toString();
             if (workerStringReinsert.some((x) => workerString.includes(x))) {
                 result.push(proto);
-            } else {
             }
             proto = Object.getPrototypeOf(proto);
         }
@@ -132,9 +142,11 @@
     }
     function isValidWorker(worker) {
         const workerString = worker.toString();
-        return !workerStringConflicts.some((x) => workerString.includes(x))
-            || workerStringAllow.some((x) => workerString.includes(x))
-            || workerStringReinsert.some((x) => workerString.includes(x));
+        return (
+            !workerStringConflicts.some((x) => workerString.includes(x)) ||
+            workerStringAllow.some((x) => workerString.includes(x)) ||
+            workerStringReinsert.some((x) => workerString.includes(x))
+        );
     }
     function hookWindowWorker() {
         const reinsert = getWorkersForReinsert(adPage.Worker);
@@ -143,7 +155,9 @@
                 twitchBlobUrl = String(twitchBlobUrl);
                 let isTwitchWorker = false;
                 try {
-                    isTwitchWorker = options?.type !== 'module' && new URL(twitchBlobUrl).origin.endsWith('.twitch.tv');
+                    isTwitchWorker =
+                        options?.type !== "module" &&
+                        new URL(twitchBlobUrl).origin.endsWith(".twitch.tv");
                 } catch {}
                 if (!isTwitchWorker) {
                     super(twitchBlobUrl, options);
@@ -214,62 +228,83 @@
                     eval(workerString);
                 `;
                 const blobUrl = URL.createObjectURL(new Blob([newBlobStr]));
-                try { super(blobUrl, options); }
-                catch (error) { URL.revokeObjectURL(blobUrl); throw error; }
+                try {
+                    super(blobUrl, options);
+                } catch (error) {
+                    URL.revokeObjectURL(blobUrl);
+                    throw error;
+                }
                 this.twitchKitBlobUrl = blobUrl;
-                this.addEventListener('message', () => URL.revokeObjectURL(blobUrl), { once: true });
-                this.addEventListener('error', () => URL.revokeObjectURL(blobUrl), { once: true });
+                this.addEventListener(
+                    "message",
+                    () => URL.revokeObjectURL(blobUrl),
+                    { once: true },
+                );
+                this.addEventListener(
+                    "error",
+                    () => URL.revokeObjectURL(blobUrl),
+                    { once: true },
+                );
                 twitchWorkers.add(this);
-                this.addEventListener('message', (e) => {
-                    if (e.data.key == 'UpdateAdBlockBanner') {
+                this.addEventListener("message", (e) => {
+                    if (e.data.key == "UpdateAdBlockBanner") {
                         updateAdblockBanner(e.data);
-                    } else if (e.data.key == 'PauseResumePlayer') {
+                    } else if (e.data.key == "PauseResumePlayer") {
                         doTwitchPlayerTask(true, false);
-                    } else if (e.data.key == 'ReloadPlayer') {
+                    } else if (e.data.key == "ReloadPlayer") {
                         doTwitchPlayerTask(false, true);
                     }
                 });
-                this.addEventListener('message', async event => {
-                    if (event.data.key == 'FetchRequest') {
+                this.addEventListener("message", async (event) => {
+                    if (event.data.key == "FetchRequest") {
                         const fetchRequest = event.data.value;
-                        const responseData = await handleWorkerFetchRequest(fetchRequest);
+                        const responseData =
+                            await handleWorkerFetchRequest(fetchRequest);
                         this.postMessage({
-                            key: 'FetchResponse',
-                            value: responseData
+                            key: "FetchResponse",
+                            value: responseData,
                         });
                     }
                 });
             }
             terminate() {
                 twitchWorkers.delete(this);
-                if (this.twitchKitBlobUrl) URL.revokeObjectURL(this.twitchKitBlobUrl);
+                if (this.twitchKitBlobUrl)
+                    URL.revokeObjectURL(this.twitchKitBlobUrl);
                 return super.terminate();
             }
         };
         let workerInstance = reinsertWorkers(newWorker, reinsert);
-        Object.defineProperty(adPage, 'Worker', {
-            get: function() {
+        Object.defineProperty(adPage, "Worker", {
+            get: function () {
                 return workerInstance;
             },
-            set: function(value) {
+            set: function (value) {
                 if (isValidWorker(value)) {
                     workerInstance = value;
                 } else {
-                    console.log('Attempt to set twitch worker denied');
+                    console.log("Attempt to set twitch worker denied");
                 }
-            }
+            },
         });
     }
     function getWasmWorkerJs(twitchBlobUrl) {
         const req = new XMLHttpRequest();
-        req.open('GET', twitchBlobUrl, false);
+        req.open("GET", twitchBlobUrl, false);
         req.overrideMimeType("text/javascript");
         req.send();
         return req.responseText;
     }
     // Shared with the existing VAFT worker. No second Worker constructor hook.
     function createVodFetch(originalFetch) {
-        const qualities = ["chunked", "1080p60", "720p60", "480p30", "360p30", "160p30"];
+        const qualities = [
+            "chunked",
+            "1080p60",
+            "720p60",
+            "480p30",
+            "360p30",
+            "160p30",
+        ];
         async function request(url, init = {}) {
             const signal = init.signal
                 ? AbortSignal.any([init.signal, AbortSignal.timeout(10000)])
@@ -278,9 +313,16 @@
         }
         async function unlock(vodId, signal) {
             const response = await request("https://gql.twitch.tv/gql", {
-                method: "POST", signal,
-                headers: { "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko", "Content-Type": "application/json" },
-                body: JSON.stringify({ query: 'query($id:ID!){video(id:$id){broadcastType createdAt seekPreviewsURL owner{login}}}', variables: { id: vodId } }),
+                method: "POST",
+                signal,
+                headers: {
+                    "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    query: "query($id:ID!){video(id:$id){broadcastType createdAt seekPreviewsURL owner{login}}}",
+                    variables: { id: vodId },
+                }),
             });
             if (!response.ok) return null;
             const data = await response.json();
@@ -288,67 +330,108 @@
             if (data.errors?.length || !video?.seekPreviewsURL) return null;
             const preview = new URL(video.seekPreviewsURL);
             const parts = preview.pathname.split("/");
-            const index = parts.findIndex(part => part.includes("storyboards"));
+            const index = parts.findIndex((part) =>
+                part.includes("storyboards"),
+            );
             if (preview.protocol !== "https:" || index < 1) return null;
             const special = parts[index - 1];
             const type = video.broadcastType?.toLowerCase();
             let prefix = `${preview.origin}/${special}`;
-            if (type === "upload" && Date.parse(video.createdAt) < Date.now() - 7 * 86400000) {
+            if (
+                type === "upload" &&
+                Date.parse(video.createdAt) < Date.now() - 7 * 86400000
+            ) {
                 prefix = `${preview.origin}/${video.owner.login}/${vodId}/${special}`;
             }
-            const results = await Promise.all(qualities.map(async (quality, i) => {
-                const url = `${prefix}/${quality}/${type === "highlight" ? `highlight-${vodId}` : "index-dvr"}.m3u8`;
-                try {
-                    const r = await request(url, { signal });
-                    if (!r.ok || !(await r.text()).startsWith("#EXTM3U")) return "";
-                    const match = quality.match(/(\d+)p(\d+)/);
-                    const height = match ? +match[1] : 0;
-                    const resolution = height ? `,RESOLUTION=${Math.round(height * 16 / 9 / 2) * 2}x${height},FRAME-RATE=${match[2]}` : "";
-                    // Don't invent source codec/resolution: Twitch also serves HEVC and AV1.
-                    return `#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID="${quality}",NAME="${quality}",AUTOSELECT=YES,DEFAULT=${i ? "NO" : "YES"}\n#EXT-X-STREAM-INF:BANDWIDTH=${[8500000, 6000000, 3500000, 1500000, 750000, 300000][i]},VIDEO="${quality}"${resolution}\n${url}\n`;
-                } catch { return ""; }
-            }));
+            const results = await Promise.all(
+                qualities.map(async (quality, i) => {
+                    const url = `${prefix}/${quality}/${type === "highlight" ? `highlight-${vodId}` : "index-dvr"}.m3u8`;
+                    try {
+                        const r = await request(url, { signal });
+                        if (!r.ok || !(await r.text()).startsWith("#EXTM3U"))
+                            return "";
+                        const match = quality.match(/(\d+)p(\d+)/);
+                        const height = match ? +match[1] : 0;
+                        const resolution = height
+                            ? `,RESOLUTION=${Math.round((height * 16) / 9 / 2) * 2}x${height},FRAME-RATE=${match[2]}`
+                            : "";
+                        // Don't invent source codec/resolution: Twitch also serves HEVC and AV1.
+                        return `#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID="${quality}",NAME="${quality}",AUTOSELECT=YES,DEFAULT=${i ? "NO" : "YES"}\n#EXT-X-STREAM-INF:BANDWIDTH=${[8500000, 6000000, 3500000, 1500000, 750000, 300000][i]},VIDEO="${quality}"${resolution}\n${url}\n`;
+                    } catch {
+                        return "";
+                    }
+                }),
+            );
             const variants = results.join("");
             return variants ? `#EXTM3U\n${variants}` : null;
         }
-        return async function(input, init) {
-            const url = typeof input === "string" ? input : input.url || String(input);
+        return async function (input, init) {
+            const url =
+                typeof input === "string" ? input : input.url || String(input);
             const response = await originalFetch(input, init);
-            const vod = url.match(/^https:\/\/usher\.ttvnw\.net\/(?:api\/v2\/)?vod\/(\d+)\.m3u8(?:\?|$)/);
+            const vod = url.match(
+                /^https:\/\/usher\.ttvnw\.net\/(?:api\/v2\/)?vod\/(\d+)\.m3u8(?:\?|$)/,
+            );
             if (vod && [401, 403].includes(response.status)) {
                 try {
-                    const playlist = await unlock(vod[1], init?.signal || input?.signal);
-                    if (playlist) return new Response(playlist, { headers: { "Content-Type": "application/vnd.apple.mpegurl" } });
-                } catch { /* Keep Twitch's original error on an unavailable recording. */ }
+                    const playlist = await unlock(
+                        vod[1],
+                        init?.signal || input?.signal,
+                    );
+                    if (playlist)
+                        return new Response(playlist, {
+                            headers: {
+                                "Content-Type": "application/vnd.apple.mpegurl",
+                            },
+                        });
+                } catch {
+                    /* Keep Twitch's original error on an unavailable recording. */
+                }
             }
             return response;
         };
     }
 
     function hookWorkerFetch() {
-        console.log('hookWorkerFetch (vaft)');
+        console.log("hookWorkerFetch (vaft)");
         const realFetch = createVodFetch(fetch);
-        fetch = async function(input, options) {
-            if (typeof input === 'string') input = input.trimEnd();
+        fetch = async function (input, options) {
+            if (typeof input === "string") input = input.trimEnd();
             let url = input instanceof Request ? input.url : String(input);
-            if (AdSegmentCache.has(url)) return realFetch('data:video/mp4;base64,AAAAKGZ0eXBtcDQyAAAAAWlzb21tcDQyZGFzaGF2YzFpc282aGxzZgAABEltb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAYagAAAAAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAABqHRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAURtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAALuAAAAAAFXEAAAAAAAtaGRscgAAAAAAAAAAc291bgAAAAAAAAAAAAAAAFNvdW5kSGFuZGxlcgAAAADvbWluZgAAABBzbWhkAAAAAAAAAAAAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAACzc3RibAAAAGdzdHNkAAAAAAAAAAEAAABXbXA0YQAAAAAAAAABAAAAAAAAAAAAAgAQAAAAALuAAAAAAAAzZXNkcwAAAAADgICAIgABAASAgIAUQBUAAAAAAAAAAAAAAAWAgIACEZAGgICAAQIAAAAQc3R0cwAAAAAAAAAAAAAAEHN0c2MAAAAAAAAAAAAAABRzdHN6AAAAAAAAAAAAAAAAAAAAEHN0Y28AAAAAAAAAAAAAAeV0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAoAAAAFoAAAAAAGBbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAA9CQAAAAABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABLG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAOxzdGJsAAAAoHN0c2QAAAAAAAAAAQAAAJBhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAoABaABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAAOmF2Y0MBTUAe/+EAI2dNQB6WUoFAX/LgLUBAQFAAAD6AAA6mDgAAHoQAA9CW7y4KAQAEaOuPIAAAABBzdHRzAAAAAAAAAAAAAAAQc3RzYwAAAAAAAAAAAAAAFHN0c3oAAAAAAAAAAAAAAAAAAAAQc3RjbwAAAAAAAAAAAAAASG12ZXgAAAAgdHJleAAAAAAAAAABAAAAAQAAAC4AAAAAAoAAAAAAACB0cmV4AAAAAAAAAAIAAAABAACCNQAAAAACQAAA', options);
-            if (url.includes('/channel/hls/') && !url.includes('picture-by-picture')) {
-                V2API = url.includes('/api/v2/');
+            if (AdSegmentCache.has(url))
+                return realFetch(
+                    "data:video/mp4;base64,AAAAKGZ0eXBtcDQyAAAAAWlzb21tcDQyZGFzaGF2YzFpc282aGxzZgAABEltb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAYagAAAAAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAABqHRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAURtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAALuAAAAAAFXEAAAAAAAtaGRscgAAAAAAAAAAc291bgAAAAAAAAAAAAAAAFNvdW5kSGFuZGxlcgAAAADvbWluZgAAABBzbWhkAAAAAAAAAAAAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAACzc3RibAAAAGdzdHNkAAAAAAAAAAEAAABXbXA0YQAAAAAAAAABAAAAAAAAAAAAAgAQAAAAALuAAAAAAAAzZXNkcwAAAAADgICAIgABAASAgIAUQBUAAAAAAAAAAAAAAAWAgIACEZAGgICAAQIAAAAQc3R0cwAAAAAAAAAAAAAAEHN0c2MAAAAAAAAAAAAAABRzdHN6AAAAAAAAAAAAAAAAAAAAEHN0Y28AAAAAAAAAAAAAAeV0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAoAAAAFoAAAAAAGBbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAA9CQAAAAABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABLG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAOxzdGJsAAAAoHN0c2QAAAAAAAAAAQAAAJBhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAoABaABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAAOmF2Y0MBTUAe/+EAI2dNQB6WUoFAX/LgLUBAQFAAAD6AAA6mDgAAHoQAA9CW7y4KAQAEaOuPIAAAABBzdHRzAAAAAAAAAAAAAAAQc3RzYwAAAAAAAAAAAAAAFHN0c3oAAAAAAAAAAAAAAAAAAAAQc3RjbwAAAAAAAAAAAAAASG12ZXgAAAAgdHJleAAAAAAAAAABAAAAAQAAAC4AAAAAAoAAAAAAACB0cmV4AAAAAAAAAAIAAAABAACCNQAAAAACQAAA",
+                    options,
+                );
+            if (
+                url.includes("/channel/hls/") &&
+                !url.includes("picture-by-picture")
+            ) {
+                V2API = url.includes("/api/v2/");
                 const parsed = new URL(url);
-                const channelName = parsed.pathname.match(/([^\/]+)\.m3u8$/)?.[1];
+                const channelName =
+                    parsed.pathname.match(/([^\/]+)\.m3u8$/)?.[1];
                 if (!channelName) return realFetch(input, options);
                 if (ForceAccessTokenPlayerType) {
-                    parsed.searchParams.delete('parent_domains');
+                    parsed.searchParams.delete("parent_domains");
                     url = parsed.href;
-                    input = input instanceof Request ? new Request(url, input) : url;
+                    input =
+                        input instanceof Request
+                            ? new Request(url, input)
+                            : url;
                 }
                 const response = await realFetch(input, options);
                 if (response.status !== 200) return response;
                 const encodingsM3u8 = await response.text();
                 const serverTime = getServerTimeFromM3u8(encodingsM3u8);
                 let streamInfo = StreamInfos[channelName];
-                const cachedUrl = streamInfo?.EncodingsM3U8?.match(/^https:.*\.m3u8(?:\?[^\r\n]*)?$/m)?.[0];
-                if (streamInfo?.EncodingsM3U8 && (!cachedUrl || (await realFetch(cachedUrl)).status !== 200)) {
+                const cachedUrl = streamInfo?.EncodingsM3U8?.match(
+                    /^https:.*\.m3u8(?:\?[^\r\n]*)?$/m,
+                )?.[0];
+                if (
+                    streamInfo?.EncodingsM3U8 &&
+                    (!cachedUrl || (await realFetch(cachedUrl)).status !== 200)
+                ) {
                     // The cached encodings are dead (the stream probably restarted)
                     streamInfo = null;
                 }
@@ -360,27 +443,32 @@
                         EncodingsM3U8: encodingsM3u8,
                         ModifiedM3U8: null,
                         IsUsingModifiedM3U8: false,
-                        UsherParams: (new URL(url)).search,
+                        UsherParams: new URL(url).search,
                         RequestedAds: new Set(),
-                        Urls: [],// xxx.m3u8 -> { Resolution: "284x160", FrameRate: 30.0 }
+                        Urls: [], // xxx.m3u8 -> { Resolution: "284x160", FrameRate: 30.0 }
                         ResolutionList: [],
                         BackupEncodingsM3U8Cache: [],
                         ActiveBackupPlayerType: null,
                         IsMidroll: false,
                         IsStrippingAdSegments: false,
-                        NumStrippedAdSegments: 0
+                        NumStrippedAdSegments: 0,
                     };
-                    const lines = encodingsM3u8.replaceAll('\r', '').split('\n');
+                    const lines = encodingsM3u8
+                        .replaceAll("\r", "")
+                        .split("\n");
                     for (let i = 0; i < lines.length - 1; i++) {
-                        if (lines[i].startsWith('#EXT-X-STREAM-INF') && lines[i + 1].includes('.m3u8')) {
+                        if (
+                            lines[i].startsWith("#EXT-X-STREAM-INF") &&
+                            lines[i + 1].includes(".m3u8")
+                        ) {
                             const attributes = parseAttributes(lines[i]);
-                            const resolution = attributes['RESOLUTION'];
+                            const resolution = attributes["RESOLUTION"];
                             if (resolution) {
                                 const resolutionInfo = {
                                     Resolution: resolution,
-                                    FrameRate: attributes['FRAME-RATE'],
-                                    Codecs: attributes['CODECS'] || '',
-                                    Url: lines[i + 1]
+                                    FrameRate: attributes["FRAME-RATE"],
+                                    Codecs: attributes["CODECS"] || "",
+                                    Url: lines[i + 1],
                                 };
                                 streamInfo.Urls[lines[i + 1]] = resolutionInfo;
                                 streamInfo.ResolutionList.push(resolutionInfo);
@@ -388,49 +476,134 @@
                             StreamInfosByUrl[lines[i + 1]] = streamInfo;
                         }
                     }
-                    const nonHevcResolutionList = streamInfo.ResolutionList.filter((element) => element.Codecs.startsWith('avc') || element.Codecs.startsWith('av0'));
-                    if (AlwaysReloadPlayerOnAd || (nonHevcResolutionList.length > 0 && streamInfo.ResolutionList.some((element) => element.Codecs.startsWith('hev') || element.Codecs.startsWith('hvc')) && !SkipPlayerReloadOnHevc)) {
+                    const nonHevcResolutionList =
+                        streamInfo.ResolutionList.filter(
+                            (element) =>
+                                element.Codecs.startsWith("avc") ||
+                                element.Codecs.startsWith("av0"),
+                        );
+                    if (
+                        AlwaysReloadPlayerOnAd ||
+                        (nonHevcResolutionList.length > 0 &&
+                            streamInfo.ResolutionList.some(
+                                (element) =>
+                                    element.Codecs.startsWith("hev") ||
+                                    element.Codecs.startsWith("hvc"),
+                            ) &&
+                            !SkipPlayerReloadOnHevc)
+                    ) {
                         if (nonHevcResolutionList.length > 0) {
                             for (let i = 0; i < lines.length - 1; i++) {
-                                if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
-                                    const resSettings = parseAttributes(lines[i].substring(lines[i].indexOf(':') + 1));
-                                    const codecsKey = 'CODECS';
-                                    if (resSettings[codecsKey]?.startsWith('hev') || resSettings[codecsKey]?.startsWith('hvc')) {
-                                        const oldResolution = resSettings['RESOLUTION'];
-                                        const [targetWidth, targetHeight] = oldResolution.split('x').map(Number);
-                                        const newResolutionInfo = nonHevcResolutionList.sort((a, b) => {
-                                            // TODO: Take into account 'Frame-Rate' when sorting (i.e. 1080p60 vs 1080p30)
-                                            const [streamWidthA, streamHeightA] = a.Resolution.split('x').map(Number);
-                                            const [streamWidthB, streamHeightB] = b.Resolution.split('x').map(Number);
-                                            return Math.abs((streamWidthA * streamHeightA) - (targetWidth * targetHeight)) - Math.abs((streamWidthB * streamHeightB) - (targetWidth * targetHeight));
-                                        })[0];
-                                        console.log('ModifiedM3U8 swap ' + resSettings[codecsKey] + ' to ' + newResolutionInfo.Codecs + ' oldRes:' + oldResolution + ' newRes:' + newResolutionInfo.Resolution);
-                                        lines[i] = lines[i].replace(/CODECS="[^"]+"/, `CODECS="${newResolutionInfo.Codecs}"`);
-                                        lines[i + 1] = newResolutionInfo.Url + ' '.repeat(i + 1);// The stream doesn't load unless each url line is unique
+                                if (lines[i].startsWith("#EXT-X-STREAM-INF")) {
+                                    const resSettings = parseAttributes(
+                                        lines[i].substring(
+                                            lines[i].indexOf(":") + 1,
+                                        ),
+                                    );
+                                    const codecsKey = "CODECS";
+                                    if (
+                                        resSettings[codecsKey]?.startsWith(
+                                            "hev",
+                                        ) ||
+                                        resSettings[codecsKey]?.startsWith(
+                                            "hvc",
+                                        )
+                                    ) {
+                                        const oldResolution =
+                                            resSettings["RESOLUTION"];
+                                        const [targetWidth, targetHeight] =
+                                            oldResolution
+                                                .split("x")
+                                                .map(Number);
+                                        const newResolutionInfo =
+                                            nonHevcResolutionList.sort(
+                                                (a, b) => {
+                                                    // TODO: Take into account 'Frame-Rate' when sorting (i.e. 1080p60 vs 1080p30)
+                                                    const [
+                                                        streamWidthA,
+                                                        streamHeightA,
+                                                    ] =
+                                                        a.Resolution.split(
+                                                            "x",
+                                                        ).map(Number);
+                                                    const [
+                                                        streamWidthB,
+                                                        streamHeightB,
+                                                    ] =
+                                                        b.Resolution.split(
+                                                            "x",
+                                                        ).map(Number);
+                                                    return (
+                                                        Math.abs(
+                                                            streamWidthA *
+                                                                streamHeightA -
+                                                                targetWidth *
+                                                                    targetHeight,
+                                                        ) -
+                                                        Math.abs(
+                                                            streamWidthB *
+                                                                streamHeightB -
+                                                                targetWidth *
+                                                                    targetHeight,
+                                                        )
+                                                    );
+                                                },
+                                            )[0];
+                                        console.log(
+                                            "ModifiedM3U8 swap " +
+                                                resSettings[codecsKey] +
+                                                " to " +
+                                                newResolutionInfo.Codecs +
+                                                " oldRes:" +
+                                                oldResolution +
+                                                " newRes:" +
+                                                newResolutionInfo.Resolution,
+                                        );
+                                        lines[i] = lines[i].replace(
+                                            /CODECS="[^"]+"/,
+                                            `CODECS="${newResolutionInfo.Codecs}"`,
+                                        );
+                                        lines[i + 1] =
+                                            newResolutionInfo.Url +
+                                            " ".repeat(i + 1); // The stream doesn't load unless each url line is unique
                                     }
                                 }
                             }
                         }
-                        if (nonHevcResolutionList.length > 0 || AlwaysReloadPlayerOnAd) {
-                            streamInfo.ModifiedM3U8 = lines.join('\n');
+                        if (
+                            nonHevcResolutionList.length > 0 ||
+                            AlwaysReloadPlayerOnAd
+                        ) {
+                            streamInfo.ModifiedM3U8 = lines.join("\n");
                         }
                     }
                 }
                 streamInfo.LastPlayerReload = Date.now();
-                return new Response(replaceServerTimeInM3u8(streamInfo.IsUsingModifiedM3U8 ? streamInfo.ModifiedM3U8 : streamInfo.EncodingsM3U8, serverTime));
+                return new Response(
+                    replaceServerTimeInM3u8(
+                        streamInfo.IsUsingModifiedM3U8
+                            ? streamInfo.ModifiedM3U8
+                            : streamInfo.EncodingsM3U8,
+                        serverTime,
+                    ),
+                );
             }
             const response = await realFetch(input, options);
-            if (response.status !== 200 || !/\.m3u8(?:\?|$)/.test(url)) return response;
+            if (response.status !== 200 || !/\.m3u8(?:\?|$)/.test(url))
+                return response;
             let body = await response.text();
-            if (/\/(?:index-dvr|highlight-\d+)\.m3u8(?:\?|$)/.test(url)) body = body.replaceAll('-unmuted', '-muted');
+            if (/\/(?:index-dvr|highlight-\d+)\.m3u8(?:\?|$)/.test(url))
+                body = body.replaceAll("-unmuted", "-muted");
             return new Response(await processM3U8(url, body, realFetch), {
-                headers: { 'Content-Type': 'application/vnd.apple.mpegurl' },
+                headers: { "Content-Type": "application/vnd.apple.mpegurl" },
             });
         };
     }
     function getServerTimeFromM3u8(encodingsM3u8) {
         if (V2API) {
-            const matches = encodingsM3u8.match(/#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="([^"]+)"/);
+            const matches = encodingsM3u8.match(
+                /#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="([^"]+)"/,
+            );
             return matches?.[1] ?? null;
         }
         const matches = encodingsM3u8.match('SERVER-TIME="([0-9.]+)"');
@@ -438,22 +611,44 @@
     }
     function replaceServerTimeInM3u8(encodingsM3u8, newServerTime) {
         if (V2API) {
-            return newServerTime ? encodingsM3u8.replace(/(#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE=")[^"]+(")/, `$1${newServerTime}$2`) : encodingsM3u8;
+            return newServerTime
+                ? encodingsM3u8.replace(
+                      /(#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE=")[^"]+(")/,
+                      `$1${newServerTime}$2`,
+                  )
+                : encodingsM3u8;
         }
-        return newServerTime ? encodingsM3u8.replace(new RegExp('(SERVER-TIME=")[0-9.]+"'), `SERVER-TIME="${newServerTime}"`) : encodingsM3u8;
+        return newServerTime
+            ? encodingsM3u8.replace(
+                  new RegExp('(SERVER-TIME=")[0-9.]+"'),
+                  `SERVER-TIME="${newServerTime}"`,
+              )
+            : encodingsM3u8;
     }
     function stripAdSegments(textStr, stripAllSegments, streamInfo) {
         let hasStrippedAdSegments = false;
-        const lines = textStr.replaceAll('\r', '').split('\n');
-        const newAdUrl = 'https://twitch.tv';
+        const lines = textStr.replaceAll("\r", "").split("\n");
+        const newAdUrl = "https://twitch.tv";
         for (let i = 0; i < lines.length; i++) {
             let line = lines[i];
             // Remove tracking urls which appear in the overlay UI
             line = line
-                .replaceAll(/(X-TV-TWITCH-AD-URL=")(?:[^"]*)(")/g, `$1${newAdUrl}$2`)
-                .replaceAll(/(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")(?:[^"]*)(")/g, `$1${newAdUrl}$2`);
+                .replaceAll(
+                    /(X-TV-TWITCH-AD-URL=")(?:[^"]*)(")/g,
+                    `$1${newAdUrl}$2`,
+                )
+                .replaceAll(
+                    /(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")(?:[^"]*)(")/g,
+                    `$1${newAdUrl}$2`,
+                );
             lines[i] = line;
-            if (i < lines.length - 1 && line.startsWith('#EXTINF') && (!line.includes(',live') || stripAllSegments || AllSegmentsAreAdSegments)) {
+            if (
+                i < lines.length - 1 &&
+                line.startsWith("#EXTINF") &&
+                (!line.includes(",live") ||
+                    stripAllSegments ||
+                    AllSegmentsAreAdSegments)
+            ) {
                 const segmentUrl = lines[i + 1];
                 if (!AdSegmentCache.has(segmentUrl)) {
                     streamInfo.NumStrippedAdSegments++;
@@ -468,8 +663,8 @@
         if (hasStrippedAdSegments) {
             for (let i = 0; i < lines.length; i++) {
                 // No low latency during ads (otherwise it's possible for the player to prefetch and display ad segments)
-                if (lines[i].startsWith('#EXT-X-TWITCH-PREFETCH:')) {
-                    lines[i] = '';
+                if (lines[i].startsWith("#EXT-X-TWITCH-PREFETCH:")) {
+                    lines[i] = "";
                 }
             }
         } else {
@@ -481,30 +676,42 @@
                 map.delete(key);
             }
         });
-        return lines.join('\n');
+        return lines.join("\n");
     }
     function getStreamUrlForResolution(encodingsM3u8, resolutionInfo) {
-        const encodingsLines = encodingsM3u8.replaceAll('\r', '').split('\n');
-        const [targetWidth, targetHeight] = resolutionInfo.Resolution.split('x').map(Number);
+        const encodingsLines = encodingsM3u8.replaceAll("\r", "").split("\n");
+        const [targetWidth, targetHeight] =
+            resolutionInfo.Resolution.split("x").map(Number);
         let matchedResolutionUrl = null;
         let matchedFrameRate = false;
         let closestResolutionUrl = null;
         let closestResolutionDifference = Infinity;
         for (let i = 0; i < encodingsLines.length - 1; i++) {
-            if (encodingsLines[i].startsWith('#EXT-X-STREAM-INF') && encodingsLines[i + 1].includes('.m3u8')) {
+            if (
+                encodingsLines[i].startsWith("#EXT-X-STREAM-INF") &&
+                encodingsLines[i + 1].includes(".m3u8")
+            ) {
                 const attributes = parseAttributes(encodingsLines[i]);
-                const resolution = attributes['RESOLUTION'];
-                const frameRate = attributes['FRAME-RATE'];
+                const resolution = attributes["RESOLUTION"];
+                const frameRate = attributes["FRAME-RATE"];
                 if (resolution) {
-                    if (resolution == resolutionInfo.Resolution && (!matchedResolutionUrl || (!matchedFrameRate && frameRate == resolutionInfo.FrameRate))) {
+                    if (
+                        resolution == resolutionInfo.Resolution &&
+                        (!matchedResolutionUrl ||
+                            (!matchedFrameRate &&
+                                frameRate == resolutionInfo.FrameRate))
+                    ) {
                         matchedResolutionUrl = encodingsLines[i + 1];
-                        matchedFrameRate = frameRate == resolutionInfo.FrameRate;
+                        matchedFrameRate =
+                            frameRate == resolutionInfo.FrameRate;
                         if (matchedFrameRate) {
                             return matchedResolutionUrl;
                         }
                     }
-                    const [width, height] = resolution.split('x').map(Number);
-                    const difference = Math.abs((width * height) - (targetWidth * targetHeight));
+                    const [width, height] = resolution.split("x").map(Number);
+                    const difference = Math.abs(
+                        width * height - targetWidth * targetHeight,
+                    );
                     if (difference < closestResolutionDifference) {
                         closestResolutionUrl = encodingsLines[i + 1];
                         closestResolutionDifference = difference;
@@ -523,28 +730,35 @@
             HasTriggeredPlayerReload = false;
             streamInfo.LastPlayerReload = Date.now();
         }
-        const haveAdTags = textStr.includes(AdSignifier) || SimulatedAdsDepth > 0;
+        const haveAdTags =
+            textStr.includes(AdSignifier) || SimulatedAdsDepth > 0;
         if (haveAdTags) {
-            streamInfo.IsMidroll = textStr.includes('"MIDROLL"') || textStr.includes('"midroll"');
+            streamInfo.IsMidroll =
+                textStr.includes('"MIDROLL"') || textStr.includes('"midroll"');
             if (!streamInfo.IsShowingAd) {
                 streamInfo.IsShowingAd = true;
                 postMessage({
-                    key: 'UpdateAdBlockBanner',
+                    key: "UpdateAdBlockBanner",
                     isMidroll: streamInfo.IsMidroll,
                     hasAds: streamInfo.IsShowingAd,
-                    isStrippingAdSegments: false
+                    isStrippingAdSegments: false,
                 });
             }
             if (!streamInfo.IsMidroll) {
-                const lines = textStr.replaceAll('\r', '').split('\n');
+                const lines = textStr.replaceAll("\r", "").split("\n");
                 for (let i = 0; i < lines.length; i++) {
                     const line = lines[i];
-                    if (line.startsWith('#EXTINF') && lines.length > i + 1) {
-                        if (!line.includes(',live') && !streamInfo.RequestedAds.has(lines[i + 1])) {
+                    if (line.startsWith("#EXTINF") && lines.length > i + 1) {
+                        if (
+                            !line.includes(",live") &&
+                            !streamInfo.RequestedAds.has(lines[i + 1])
+                        ) {
                             // Only request one .ts file per .m3u8 request to avoid making too many requests
                             //console.log('Fetch ad .ts file');
                             streamInfo.RequestedAds.add(lines[i + 1]);
-                            fetch(lines[i + 1]).then(response => response.blob()).catch(() => {});
+                            fetch(lines[i + 1])
+                                .then((response) => response.blob())
+                                .catch(() => {});
                             break;
                         }
                     }
@@ -552,15 +766,24 @@
             }
             const currentResolution = streamInfo.Urls[url];
             if (!currentResolution) {
-                console.log('Ads will leak due to missing resolution info for ' + url);
+                console.log(
+                    "Ads will leak due to missing resolution info for " + url,
+                );
                 return textStr;
             }
-            const isHevc = currentResolution.Codecs.startsWith('hev') || currentResolution.Codecs.startsWith('hvc');
-            if (((isHevc && !SkipPlayerReloadOnHevc) || AlwaysReloadPlayerOnAd) && streamInfo.ModifiedM3U8 && !streamInfo.IsUsingModifiedM3U8) {
+            const isHevc =
+                currentResolution.Codecs.startsWith("hev") ||
+                currentResolution.Codecs.startsWith("hvc");
+            if (
+                ((isHevc && !SkipPlayerReloadOnHevc) ||
+                    AlwaysReloadPlayerOnAd) &&
+                streamInfo.ModifiedM3U8 &&
+                !streamInfo.IsUsingModifiedM3U8
+            ) {
                 streamInfo.IsUsingModifiedM3U8 = true;
                 streamInfo.LastPlayerReload = Date.now();
                 postMessage({
-                    key: 'ReloadPlayer'
+                    key: "ReloadPlayer",
                 });
             }
             let backupPlayerType = null;
@@ -568,46 +791,91 @@
             let fallbackM3u8 = null;
             let startIndex = 0;
             let isDoingMinimalRequests = false;
-            if (streamInfo.LastPlayerReload > Date.now() - PlayerReloadMinimalRequestsTime) {
+            if (
+                streamInfo.LastPlayerReload >
+                Date.now() - PlayerReloadMinimalRequestsTime
+            ) {
                 // When doing player reload there are a lot of requests which causes the backup stream to load in slow. Briefly prefer using a single version to prevent long delays
                 startIndex = PlayerReloadMinimalRequestsPlayerIndex;
                 isDoingMinimalRequests = true;
             }
-            for (let playerTypeIndex = startIndex; !backupM3u8 && playerTypeIndex < BackupPlayerTypes.length; playerTypeIndex++) {
+            for (
+                let playerTypeIndex = startIndex;
+                !backupM3u8 && playerTypeIndex < BackupPlayerTypes.length;
+                playerTypeIndex++
+            ) {
                 const playerType = BackupPlayerTypes[playerTypeIndex];
-                const realPlayerType = playerType.replace('-CACHED', '');
+                const realPlayerType = playerType.replace("-CACHED", "");
                 const isFullyCachedPlayerType = playerType != realPlayerType;
                 for (let i = 0; i < 2; i++) {
                     // This caches the m3u8 if it doesn't have ads. If the already existing cache has ads it fetches a new version (second loop)
                     let isFreshM3u8 = false;
-                    let encodingsM3u8 = streamInfo.BackupEncodingsM3U8Cache[playerType];
+                    let encodingsM3u8 =
+                        streamInfo.BackupEncodingsM3U8Cache[playerType];
                     if (!encodingsM3u8) {
                         isFreshM3u8 = true;
                         try {
-                            const accessTokenResponse = await getAccessToken(streamInfo.ChannelName, realPlayerType);
+                            const accessTokenResponse = await getAccessToken(
+                                streamInfo.ChannelName,
+                                realPlayerType,
+                            );
                             if (accessTokenResponse.status === 200) {
-                                const accessToken = await accessTokenResponse.json();
-                                const urlInfo = new URL('https://usher.ttvnw.net/api/' + (V2API ? 'v2/' : '') + 'channel/hls/' + streamInfo.ChannelName + '.m3u8' + streamInfo.UsherParams);
-                                urlInfo.searchParams.set('sig', accessToken.data.streamPlaybackAccessToken.signature);
-                                urlInfo.searchParams.set('token', accessToken.data.streamPlaybackAccessToken.value);
-                                const encodingsM3u8Response = await realFetch(urlInfo.href);
+                                const accessToken =
+                                    await accessTokenResponse.json();
+                                const urlInfo = new URL(
+                                    "https://usher.ttvnw.net/api/" +
+                                        (V2API ? "v2/" : "") +
+                                        "channel/hls/" +
+                                        streamInfo.ChannelName +
+                                        ".m3u8" +
+                                        streamInfo.UsherParams,
+                                );
+                                urlInfo.searchParams.set(
+                                    "sig",
+                                    accessToken.data.streamPlaybackAccessToken
+                                        .signature,
+                                );
+                                urlInfo.searchParams.set(
+                                    "token",
+                                    accessToken.data.streamPlaybackAccessToken
+                                        .value,
+                                );
+                                const encodingsM3u8Response = await realFetch(
+                                    urlInfo.href,
+                                );
                                 if (encodingsM3u8Response.status === 200) {
-                                    encodingsM3u8 = streamInfo.BackupEncodingsM3U8Cache[playerType] = await encodingsM3u8Response.text();
+                                    encodingsM3u8 =
+                                        streamInfo.BackupEncodingsM3U8Cache[
+                                            playerType
+                                        ] = await encodingsM3u8Response.text();
                                 }
                             }
                         } catch (err) {}
                     }
                     if (encodingsM3u8) {
                         try {
-                            const streamM3u8Url = getStreamUrlForResolution(encodingsM3u8, currentResolution);
-                            const streamM3u8Response = await realFetch(streamM3u8Url);
+                            const streamM3u8Url = getStreamUrlForResolution(
+                                encodingsM3u8,
+                                currentResolution,
+                            );
+                            const streamM3u8Response =
+                                await realFetch(streamM3u8Url);
                             if (streamM3u8Response.status == 200) {
-                                const m3u8Text = await streamM3u8Response.text();
+                                const m3u8Text =
+                                    await streamM3u8Response.text();
                                 if (m3u8Text) {
                                     if (playerType == FallbackPlayerType) {
                                         fallbackM3u8 = m3u8Text;
                                     }
-                                    if ((!m3u8Text.includes(AdSignifier) && (SimulatedAdsDepth == 0 || playerTypeIndex >= SimulatedAdsDepth - 1)) || (!fallbackM3u8 && playerTypeIndex >= BackupPlayerTypes.length - 1)) {
+                                    if (
+                                        (!m3u8Text.includes(AdSignifier) &&
+                                            (SimulatedAdsDepth == 0 ||
+                                                playerTypeIndex >=
+                                                    SimulatedAdsDepth - 1)) ||
+                                        (!fallbackM3u8 &&
+                                            playerTypeIndex >=
+                                                BackupPlayerTypes.length - 1)
+                                    ) {
                                         backupPlayerType = playerType;
                                         backupM3u8 = m3u8Text;
                                         break;
@@ -638,7 +906,9 @@
                 textStr = backupM3u8;
                 if (streamInfo.ActiveBackupPlayerType != backupPlayerType) {
                     streamInfo.ActiveBackupPlayerType = backupPlayerType;
-                    console.log(`Blocking${(streamInfo.IsMidroll ? ' midroll ' : ' ')}ads (${backupPlayerType})`);
+                    console.log(
+                        `Blocking${streamInfo.IsMidroll ? " midroll " : " "}ads (${backupPlayerType})`,
+                    );
                 }
             }
             // TODO: Improve hevc stripping. It should always strip when there is a codec mismatch (both ways)
@@ -647,7 +917,7 @@
                 textStr = stripAdSegments(textStr, stripHevc, streamInfo);
             }
         } else if (streamInfo.IsShowingAd) {
-            console.log('Finished blocking ads');
+            console.log("Finished blocking ads");
             streamInfo.IsShowingAd = false;
             streamInfo.IsStrippingAdSegments = false;
             streamInfo.NumStrippedAdSegments = 0;
@@ -656,90 +926,104 @@
                 streamInfo.IsUsingModifiedM3U8 = false;
                 streamInfo.LastPlayerReload = Date.now();
                 postMessage({
-                    key: 'ReloadPlayer'
+                    key: "ReloadPlayer",
                 });
             } else {
                 postMessage({
-                    key: 'PauseResumePlayer'
+                    key: "PauseResumePlayer",
                 });
             }
         }
         postMessage({
-            key: 'UpdateAdBlockBanner',
+            key: "UpdateAdBlockBanner",
             isMidroll: streamInfo.IsMidroll,
             hasAds: streamInfo.IsShowingAd,
             isStrippingAdSegments: streamInfo.IsStrippingAdSegments,
-            numStrippedAdSegments: streamInfo.NumStrippedAdSegments
+            numStrippedAdSegments: streamInfo.NumStrippedAdSegments,
         });
         return textStr;
     }
     function parseAttributes(str) {
         return Object.fromEntries(
-            str.split(/(?:^|,)((?:[^=]*)=(?:"[^"]*"|[^,]*))/)
-            .filter(Boolean)
-            .map(x => {
-                const idx = x.indexOf('=');
-                const key = x.substring(0, idx);
-                const value = x.substring(idx + 1);
-                const num = Number(value);
-                return [key, Number.isNaN(num) ? value.startsWith('"') ? JSON.parse(value) : value : num];
-            }));
+            str
+                .split(/(?:^|,)((?:[^=]*)=(?:"[^"]*"|[^,]*))/)
+                .filter(Boolean)
+                .map((x) => {
+                    const idx = x.indexOf("=");
+                    const key = x.substring(0, idx);
+                    const value = x.substring(idx + 1);
+                    const num = Number(value);
+                    return [
+                        key,
+                        Number.isNaN(num)
+                            ? value.startsWith('"')
+                                ? JSON.parse(value)
+                                : value
+                            : num,
+                    ];
+                }),
+        );
     }
     function getAccessToken(channelName, playerType) {
         const body = {
-            operationName: 'PlaybackAccessToken',
+            operationName: "PlaybackAccessToken",
             variables: {
                 isLive: true,
                 login: channelName,
                 isVod: false,
                 vodID: "",
                 playerType: playerType,
-                platform: playerType == 'autoplay' ? 'android' : 'web'
+                platform: playerType == "autoplay" ? "android" : "web",
             },
             extensions: {
                 persistedQuery: {
-                    version:1,
-                    sha256Hash:"ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be06a04f3cdbe9"
-                }
-            }
+                    version: 1,
+                    sha256Hash:
+                        "ed230aa1e33e07eebb8928504583da78a5173989fadfb1ac94be06a04f3cdbe9",
+                },
+            },
         };
         return gqlRequest(body, playerType);
     }
     function gqlRequest(body, playerType) {
         if (!GQLDeviceID) {
-            GQLDeviceID = '';
-            const dcharacters = 'abcdefghijklmnopqrstuvwxyz0123456789';
+            GQLDeviceID = "";
+            const dcharacters = "abcdefghijklmnopqrstuvwxyz0123456789";
             const dcharactersLength = dcharacters.length;
             for (let i = 0; i < 32; i++) {
-                GQLDeviceID += dcharacters.charAt(Math.floor(Math.random() * dcharactersLength));
+                GQLDeviceID += dcharacters.charAt(
+                    Math.floor(Math.random() * dcharactersLength),
+                );
             }
         }
         let headers = {
-            'Client-ID': ClientID,
-            'X-Device-Id': GQLDeviceID,
-            'Authorization': AuthorizationHeader,
-            ...(ClientIntegrityHeader && {'Client-Integrity': ClientIntegrityHeader}),
-            ...(ClientVersion && {'Client-Version': ClientVersion}),
-            ...(ClientSession && {'Client-Session-Id': ClientSession})
+            "Client-ID": ClientID,
+            "X-Device-Id": GQLDeviceID,
+            Authorization: AuthorizationHeader,
+            ...(ClientIntegrityHeader && {
+                "Client-Integrity": ClientIntegrityHeader,
+            }),
+            ...(ClientVersion && { "Client-Version": ClientVersion }),
+            ...(ClientSession && { "Client-Session-Id": ClientSession }),
         };
         return new Promise((resolve, reject) => {
             const requestId = Math.random().toString(36).substring(2, 15);
             const fetchRequest = {
                 id: requestId,
-                url: 'https://gql.twitch.tv/gql',
+                url: "https://gql.twitch.tv/gql",
                 options: {
-                    method: 'POST',
+                    method: "POST",
                     body: JSON.stringify(body),
-                    headers
-                }
+                    headers,
+                },
             };
             pendingFetchRequests.set(requestId, {
                 resolve,
-                reject
+                reject,
             });
             postMessage({
-                key: 'FetchRequest',
-                value: fetchRequest
+                key: "FetchRequest",
+                value: fetchRequest,
             });
         });
     }
@@ -752,49 +1036,83 @@
         bufferDuration: 0,
         numSame: 0,
         lastFixTime: 0,
-        isLive: true
+        isLive: true,
     };
     function monitorPlayerBuffering() {
         if (playerForMonitoringBuffering) {
             try {
                 const player = playerForMonitoringBuffering.player;
                 const state = playerForMonitoringBuffering.state;
-                if (!player.core || !player.getHTMLVideoElement()?.isConnected) {
+                if (
+                    !player.core ||
+                    !player.getHTMLVideoElement()?.isConnected
+                ) {
                     playerForMonitoringBuffering = null;
-                } else if (state.props?.content?.type === 'live' && !player.isPaused() && !player.getHTMLVideoElement()?.ended && playerBufferState.lastFixTime <= Date.now() - PlayerBufferingMinRepeatDelay && !isActivelyStrippingAds) {
+                } else if (
+                    state.props?.content?.type === "live" &&
+                    !player.isPaused() &&
+                    !player.getHTMLVideoElement()?.ended &&
+                    playerBufferState.lastFixTime <=
+                        Date.now() - PlayerBufferingMinRepeatDelay &&
+                    !isActivelyStrippingAds
+                ) {
                     const m3u8Url = player.core?.state?.path;
                     if (m3u8Url) {
-                      const fileName = new URL(m3u8Url).pathname.split('/').pop();
-                      if (fileName?.endsWith('.m3u8')) {
-                          const channelName = fileName.slice(0, -5);
-                          if (playerBufferState.channelName != channelName) {
-                              playerBufferState.channelName = channelName;
-                              playerBufferState.hasStreamStarted = false;
-                              playerBufferState.numSame = 0;
-                              //console.log('Channel changed to ' + channelName);
-                          }
-                      }
+                        const fileName = new URL(m3u8Url).pathname
+                            .split("/")
+                            .pop();
+                        if (fileName?.endsWith(".m3u8")) {
+                            const channelName = fileName.slice(0, -5);
+                            if (playerBufferState.channelName != channelName) {
+                                playerBufferState.channelName = channelName;
+                                playerBufferState.hasStreamStarted = false;
+                                playerBufferState.numSame = 0;
+                                //console.log('Channel changed to ' + channelName);
+                            }
+                        }
                     }
-                    if (player.getState() === 'Playing') {
+                    if (player.getState() === "Playing") {
                         playerBufferState.hasStreamStarted = true;
                     }
                     const position = player.core?.state?.position;
-                    const bufferedPosition = player.core?.state?.bufferedPosition;
+                    const bufferedPosition =
+                        player.core?.state?.bufferedPosition;
                     const bufferDuration = player.getBufferDuration();
-                    if (position !== undefined && bufferedPosition !== undefined) {
+                    if (
+                        position !== undefined &&
+                        bufferedPosition !== undefined
+                    ) {
                         //console.log('position:' + position + ' bufferDuration:' + bufferDuration + ' bufferPosition:' + bufferedPosition + ' state: ' + player.core?.state?.state + ' started: ' + playerBufferState.hasStreamStarted);
                         // NOTE: This could be improved. It currently lets the player fully eat the full buffer before it triggers pause/play
-                        if (playerBufferState.hasStreamStarted &&
-                            (!PlayerBufferingPrerollCheckEnabled || position > PlayerBufferingPrerollCheckOffset) &&
-                            (playerBufferState.position == position || bufferDuration < PlayerBufferingDangerZone)  &&
-                            playerBufferState.bufferedPosition == bufferedPosition &&
-                            playerBufferState.bufferDuration >= bufferDuration &&
-                            (position != 0 || bufferedPosition != 0 || bufferDuration != 0)
+                        if (
+                            playerBufferState.hasStreamStarted &&
+                            (!PlayerBufferingPrerollCheckEnabled ||
+                                position > PlayerBufferingPrerollCheckOffset) &&
+                            (playerBufferState.position == position ||
+                                bufferDuration < PlayerBufferingDangerZone) &&
+                            playerBufferState.bufferedPosition ==
+                                bufferedPosition &&
+                            playerBufferState.bufferDuration >=
+                                bufferDuration &&
+                            (position != 0 ||
+                                bufferedPosition != 0 ||
+                                bufferDuration != 0)
                         ) {
                             playerBufferState.numSame++;
-                            if (playerBufferState.numSame == PlayerBufferingSameStateCount) {
-                                console.log('Attempt to fix buffering position:' + playerBufferState.position + ' bufferedPosition:' + playerBufferState.bufferedPosition + ' bufferDuration:' + playerBufferState.bufferDuration);
-                                const isPausePlay = !PlayerBufferingDoPlayerReload;
+                            if (
+                                playerBufferState.numSame ==
+                                PlayerBufferingSameStateCount
+                            ) {
+                                console.log(
+                                    "Attempt to fix buffering position:" +
+                                        playerBufferState.position +
+                                        " bufferedPosition:" +
+                                        playerBufferState.bufferedPosition +
+                                        " bufferDuration:" +
+                                        playerBufferState.bufferDuration,
+                                );
+                                const isPausePlay =
+                                    !PlayerBufferingDoPlayerReload;
                                 const isReload = PlayerBufferingDoPlayerReload;
                                 doTwitchPlayerTask(isPausePlay, isReload);
                                 playerBufferState.lastFixTime = Date.now();
@@ -811,71 +1129,106 @@
                     }
                 }
             } catch (err) {
-                console.error('error when monitoring player for buffering: ' + err);
+                console.error(
+                    "error when monitoring player for buffering: " + err,
+                );
                 playerForMonitoringBuffering = null;
             }
         }
         if (!playerForMonitoringBuffering) {
             const playerAndState = getPlayerAndState();
-            if (playerAndState && playerAndState.player && playerAndState.state) {
+            if (
+                playerAndState &&
+                playerAndState.player &&
+                playerAndState.state
+            ) {
                 playerForMonitoringBuffering = {
                     player: playerAndState.player,
-                    state: playerAndState.state
+                    state: playerAndState.state,
                 };
             }
         }
-        const isLive = playerForMonitoringBuffering?.state?.props?.content?.type === 'live';
+        const isLive =
+            playerForMonitoringBuffering?.state?.props?.content?.type ===
+            "live";
         if (playerBufferState.isLive && !isLive) {
             updateAdblockBanner({
-                hasAds: false
+                hasAds: false,
             });
         }
         playerBufferState.isLive = isLive;
-        setTimeout(monitorPlayerBuffering, playerForMonitoringBuffering ? PlayerBufferingDelay : 3000);
+        setTimeout(
+            monitorPlayerBuffering,
+            playerForMonitoringBuffering ? PlayerBufferingDelay : 3000,
+        );
     }
     function updateAdblockBanner(data) {
-        const playerRootDiv = document.querySelector('.video-player');
+        const playerRootDiv = document.querySelector(".video-player");
         if (playerRootDiv != null) {
             let adBlockDiv = null;
-            adBlockDiv = playerRootDiv.querySelector('.adblock-overlay');
+            adBlockDiv = playerRootDiv.querySelector(".adblock-overlay");
             if (adBlockDiv == null) {
-                adBlockDiv = document.createElement('div');
-                adBlockDiv.className = 'adblock-overlay';
-                adBlockDiv.innerHTML = '<div class="player-adblock-notice" style="color: white; background-color: rgba(0, 0, 0, 0.8); position: absolute; top: 0px; left: 0px; padding: 5px;"><p></p></div>';
-                adBlockDiv.style.display = 'none';
-                adBlockDiv.P = adBlockDiv.querySelector('p');
+                adBlockDiv = document.createElement("div");
+                adBlockDiv.className = "adblock-overlay";
+                adBlockDiv.innerHTML =
+                    '<div class="player-adblock-notice" style="color: white; background-color: rgba(0, 0, 0, 0.8); position: absolute; top: 0px; left: 0px; padding: 5px;"><p></p></div>';
+                adBlockDiv.style.display = "none";
+                adBlockDiv.P = adBlockDiv.querySelector("p");
                 playerRootDiv.appendChild(adBlockDiv);
             }
             if (adBlockDiv != null) {
                 isActivelyStrippingAds = data.isStrippingAdSegments;
-                const label = 'Blocking' + (data.isMidroll ? ' midroll' : '') + ' ads' + (data.isStrippingAdSegments ? ' (stripping)' : '');
-                if (adBlockDiv.P.textContent !== label) adBlockDiv.P.textContent = label;
-                adBlockDiv.style.display = data.hasAds && playerBufferState.isLive ? 'block' : 'none';
+                const label =
+                    "Blocking" +
+                    (data.isMidroll ? " midroll" : "") +
+                    " ads" +
+                    (data.isStrippingAdSegments ? " (stripping)" : "");
+                if (adBlockDiv.P.textContent !== label)
+                    adBlockDiv.P.textContent = label;
+                adBlockDiv.style.display =
+                    data.hasAds && playerBufferState.isLive ? "block" : "none";
             }
         }
     }
     function getPlayerAndState() {
-        const element = document.querySelector('[data-a-target="video-player"], .video-player');
-        const key = Object.keys(element || {}).find(key => key.startsWith('__reactFiber$') || key.startsWith('__reactInternalInstance$'));
-        let root = element?.[key], top = root;
+        const element = document.querySelector(
+            '[data-a-target="video-player"], .video-player',
+        );
+        const key = Object.keys(element || {}).find(
+            (key) =>
+                key.startsWith("__reactFiber$") ||
+                key.startsWith("__reactInternalInstance$"),
+        );
+        let root = element?.[key],
+            top = root;
         while (top?.return) top = top.return;
-        if (top?.stateNode?.current && top.stateNode.current !== top && root?.alternate) root = root.alternate;
+        if (
+            top?.stateNode?.current &&
+            top.stateNode.current !== top &&
+            root?.alternate
+        )
+            root = root.alternate;
         if (!root) return null;
         let player = null;
         for (let node = root; node && !player; node = node.return) {
-            player = node.memoizedProps?.mediaPlayerInstance || node.memoizedProps?.value?.mediaPlayerInstance || node.stateNode?.props?.mediaPlayerInstance;
+            player =
+                node.memoizedProps?.mediaPlayerInstance ||
+                node.memoizedProps?.value?.mediaPlayerInstance ||
+                node.stateNode?.props?.mediaPlayerInstance;
         }
         player = player?.playerInstance || player;
         if (!player) return null;
         // The source controller is beside the player DOM, not necessarily an ancestor.
         // Search nearby fibers only; never recursively walk the entire application.
-        const queue = [root], seen = new Set();
+        const queue = [root],
+            seen = new Set();
         for (let i = 0; i < queue.length && seen.size < 1000; i++) {
             const node = queue[i];
             if (!node || seen.has(node)) continue;
             seen.add(node);
             const state = node.stateNode;
-            if (state?.setSrc && state?.setInitialPlaybackSettings) return { player, state };
+            if (state?.setSrc && state?.setInitialPlaybackSettings)
+                return { player, state };
             if (node.return) queue.push(node.return);
             if (node.child) queue.push(node.child);
             if (node.sibling) queue.push(node.sibling);
@@ -886,20 +1239,24 @@
         if (document.documentElement?.dataset.twitchKitRewinding) return;
         const playerAndState = getPlayerAndState();
         if (!playerAndState) {
-            console.log('Could not find react root');
+            console.log("Could not find react root");
             return;
         }
         const player = playerAndState.player;
         const playerState = playerAndState.state;
         if (!player) {
-            console.log('Could not find player');
+            console.log("Could not find player");
             return;
         }
         if (!playerState) {
-            console.log('Could not find player state');
+            console.log("Could not find player state");
             return;
         }
-        if (playerState.props?.content?.type && playerState.props.content.type !== 'live') return;
+        if (
+            playerState.props?.content?.type &&
+            playerState.props.content.type !== "live"
+        )
+            return;
         if (player.isPaused() || player.core?.paused) {
             return;
         }
@@ -911,9 +1268,9 @@
             return;
         }
         if (isReload) {
-            const lsKeyQuality = 'video-quality';
-            const lsKeyMuted = 'video-muted';
-            const lsKeyVolume = 'volume';
+            const lsKeyQuality = "video-quality";
+            const lsKeyMuted = "video-muted";
+            const lsKeyVolume = "volume";
             let currentQualityLS = null;
             let currentMutedLS = null;
             let currentVolumeLS = null;
@@ -922,22 +1279,42 @@
                 currentMutedLS = localStorage.getItem(lsKeyMuted);
                 currentVolumeLS = localStorage.getItem(lsKeyVolume);
                 if (localStorageHookFailed && player?.core?.state) {
-                    localStorage.setItem(lsKeyMuted, JSON.stringify({default:player.core.state.muted}));
+                    localStorage.setItem(
+                        lsKeyMuted,
+                        JSON.stringify({ default: player.core.state.muted }),
+                    );
                     localStorage.setItem(lsKeyVolume, player.core.state.volume);
                 }
-                if (localStorageHookFailed && player?.core?.state?.quality?.group) {
-                    localStorage.setItem(lsKeyQuality, JSON.stringify({default:player.core.state.quality.group}));
+                if (
+                    localStorageHookFailed &&
+                    player?.core?.state?.quality?.group
+                ) {
+                    localStorage.setItem(
+                        lsKeyQuality,
+                        JSON.stringify({
+                            default: player.core.state.quality.group,
+                        }),
+                    );
                 }
             } catch {}
-            console.log('Reloading Twitch player');
-            playerState.setSrc({ isNewMediaPlayerInstance: true, refreshAccessToken: true });
-            postTwitchWorkerMessage('TriggeredPlayerReload');
+            console.log("Reloading Twitch player");
+            playerState.setSrc({
+                isNewMediaPlayerInstance: true,
+                refreshAccessToken: true,
+            });
+            postTwitchWorkerMessage("TriggeredPlayerReload");
             player.play();
-            if (localStorageHookFailed && (currentQualityLS || currentMutedLS || currentVolumeLS)) {
+            if (
+                localStorageHookFailed &&
+                (currentQualityLS || currentMutedLS || currentVolumeLS)
+            ) {
                 setTimeout(() => {
                     try {
                         if (currentQualityLS) {
-                            localStorage.setItem(lsKeyQuality, currentQualityLS);
+                            localStorage.setItem(
+                                lsKeyQuality,
+                                currentQualityLS,
+                            );
                         }
                         if (currentMutedLS) {
                             localStorage.setItem(lsKeyMuted, currentMutedLS);
@@ -956,76 +1333,138 @@
     };
     function postTwitchWorkerMessage(key, value) {
         twitchWorkers.forEach((worker) => {
-            worker.postMessage({key: key, value: value});
+            worker.postMessage({ key: key, value: value });
         });
     }
     async function handleWorkerFetchRequest(fetchRequest) {
         try {
-            const response = await adPage.realFetch(fetchRequest.url, { ...fetchRequest.options, signal: AbortSignal.timeout(10000) });
+            const response = await adPage.realFetch(fetchRequest.url, {
+                ...fetchRequest.options,
+                signal: AbortSignal.timeout(10000),
+            });
             const responseBody = await response.text();
             const responseObject = {
                 id: fetchRequest.id,
                 status: response.status,
                 statusText: response.statusText,
                 headers: Object.fromEntries(response.headers.entries()),
-                body: responseBody
+                body: responseBody,
             };
             return responseObject;
         } catch (error) {
             return {
                 id: fetchRequest.id,
-                error: error.message
+                error: error.message,
             };
         }
     }
     function hookFetch() {
         const realFetch = adPage.fetch;
         adPage.realFetch = realFetch;
-        adPage.fetch = function(url, init, ...args) {
-            if (typeof url === 'string') {
-                if (url.includes('gql')) {
-                    let deviceId = init.headers['X-Device-Id'];
-                    if (typeof deviceId !== 'string') {
-                        deviceId = init.headers['Device-ID'];
+        adPage.fetch = function (url, init, ...args) {
+            if (typeof url === "string") {
+                if (/^https:\/\/gql\.twitch\.tv\/gql(?:[?#]|$)/.test(url)) {
+                    const headers = new Headers(init?.headers);
+                    let deviceId = headers.get("X-Device-Id");
+                    if (typeof deviceId !== "string") {
+                        deviceId = headers.get("Device-ID");
                     }
-                    if (typeof deviceId === 'string' && GQLDeviceID != deviceId) {
+                    if (
+                        typeof deviceId === "string" &&
+                        GQLDeviceID != deviceId
+                    ) {
                         GQLDeviceID = deviceId;
-                        postTwitchWorkerMessage('UpdateDeviceId', GQLDeviceID);
+                        postTwitchWorkerMessage("UpdateDeviceId", GQLDeviceID);
                     }
-                    if (typeof init.headers['Client-Version'] === 'string' && init.headers['Client-Version'] !== ClientVersion) {
-                        postTwitchWorkerMessage('UpdateClientVersion', ClientVersion = init.headers['Client-Version']);
+                    if (
+                        headers.has("Client-Version") &&
+                        headers.get("Client-Version") !== ClientVersion
+                    ) {
+                        postTwitchWorkerMessage(
+                            "UpdateClientVersion",
+                            (ClientVersion = headers.get("Client-Version")),
+                        );
                     }
-                    if (typeof init.headers['Client-Session-Id'] === 'string' && init.headers['Client-Session-Id'] !== ClientSession) {
-                        postTwitchWorkerMessage('UpdateClientSession', ClientSession = init.headers['Client-Session-Id']);
+                    if (
+                        headers.has("Client-Session-Id") &&
+                        headers.get("Client-Session-Id") !== ClientSession
+                    ) {
+                        postTwitchWorkerMessage(
+                            "UpdateClientSession",
+                            (ClientSession = headers.get("Client-Session-Id")),
+                        );
                     }
-                    if (typeof init.headers['Client-Integrity'] === 'string' && init.headers['Client-Integrity'] !== ClientIntegrityHeader) {
-                        postTwitchWorkerMessage('UpdateClientIntegrityHeader', ClientIntegrityHeader = init.headers['Client-Integrity']);
+                    if (
+                        headers.has("Client-Integrity") &&
+                        headers.get("Client-Integrity") !==
+                            ClientIntegrityHeader
+                    ) {
+                        postTwitchWorkerMessage(
+                            "UpdateClientIntegrityHeader",
+                            (ClientIntegrityHeader =
+                                headers.get("Client-Integrity")),
+                        );
                     }
-                    if (typeof init.headers['Authorization'] === 'string' && init.headers['Authorization'] !== AuthorizationHeader) {
-                        postTwitchWorkerMessage('UpdateAuthorizationHeader', AuthorizationHeader = init.headers['Authorization']);
+                    if (
+                        headers.has("Authorization") &&
+                        headers.get("Authorization") !== AuthorizationHeader
+                    ) {
+                        postTwitchWorkerMessage(
+                            "UpdateAuthorizationHeader",
+                            (AuthorizationHeader =
+                                headers.get("Authorization")),
+                        );
                     }
                     // Get rid of mini player above chat - TODO: Reject this locally instead of having server reject it
-                    if (init && typeof init.body === 'string' && init.body.includes('PlaybackAccessToken') && init.body.includes('picture-by-picture')) {
-                        init.body = '';
+                    if (
+                        init &&
+                        typeof init.body === "string" &&
+                        init.body.includes("PlaybackAccessToken") &&
+                        init.body.includes("picture-by-picture")
+                    ) {
+                        init.body = "";
                     }
-                    if (ForceAccessTokenPlayerType && typeof init.body === 'string' && init.body.includes('PlaybackAccessToken')) {
-                        let replacedPlayerType = '';
-                        const newBody = JSON.parse(init.body);
+                    if (
+                        ForceAccessTokenPlayerType &&
+                        typeof init?.body === "string" &&
+                        init.body.includes("PlaybackAccessToken")
+                    ) {
+                        let replacedPlayerType = "";
+                        let newBody;
+                        try {
+                            newBody = JSON.parse(init.body);
+                        } catch {
+                            return realFetch.apply(this, arguments);
+                        }
                         if (Array.isArray(newBody)) {
                             for (let i = 0; i < newBody.length; i++) {
-                                if (newBody[i]?.variables?.playerType && newBody[i]?.variables?.playerType !== ForceAccessTokenPlayerType) {
-                                    replacedPlayerType = newBody[i].variables.playerType;
-                                    newBody[i].variables.playerType = ForceAccessTokenPlayerType;
+                                if (
+                                    newBody[i]?.variables?.playerType &&
+                                    newBody[i]?.variables?.playerType !==
+                                        ForceAccessTokenPlayerType
+                                ) {
+                                    replacedPlayerType =
+                                        newBody[i].variables.playerType;
+                                    newBody[i].variables.playerType =
+                                        ForceAccessTokenPlayerType;
                                 }
                             }
                         } else {
-                            if (newBody?.variables?.playerType && newBody?.variables?.playerType !== ForceAccessTokenPlayerType) {
-                                replacedPlayerType = newBody.variables.playerType;
-                                newBody.variables.playerType = ForceAccessTokenPlayerType;
+                            if (
+                                newBody?.variables?.playerType &&
+                                newBody?.variables?.playerType !==
+                                    ForceAccessTokenPlayerType
+                            ) {
+                                replacedPlayerType =
+                                    newBody.variables.playerType;
+                                newBody.variables.playerType =
+                                    ForceAccessTokenPlayerType;
                             }
                         }
                         if (replacedPlayerType) {
-                            console.log(`Replaced '${replacedPlayerType}' player type with '${ForceAccessTokenPlayerType}' player type`);
+                            console.log(
+                                `Replaced '${replacedPlayerType}' player type with '${ForceAccessTokenPlayerType}' player type`,
+                            );
                             init.body = JSON.stringify(newBody);
                         }
                     }
@@ -1038,84 +1477,100 @@
         // This stops Twitch from pausing the player when in another tab and an ad shows.
         // Taken from https://github.com/saucettv/VideoAdBlockForTwitch/blob/cefce9d2b565769c77e3666ac8234c3acfe20d83/chrome/content.js#L30
         try {
-            Object.defineProperty(document, 'visibilityState', {
+            Object.defineProperty(document, "visibilityState", {
                 get() {
-                    return 'visible';
-                }
+                    return "visible";
+                },
             });
-        }catch{}
-        let hidden = document.__lookupGetter__('hidden');
+        } catch {}
+        let hidden = document.__lookupGetter__("hidden");
         try {
-            Object.defineProperty(document, 'hidden', {
+            Object.defineProperty(document, "hidden", {
                 get() {
                     return false;
-                }
+                },
             });
-        }catch{}
-        const block = e => {
+        } catch {}
+        const block = (e) => {
             e.preventDefault();
             e.stopPropagation();
             e.stopImmediatePropagation();
         };
-        const visibilityChange = e => {
-            if (!hidden.call(document)) playerBufferState.hasStreamStarted = true;
+        const visibilityChange = (e) => {
+            if (!hidden.call(document))
+                playerBufferState.hasStreamStarted = true;
             // Playback intent belongs to the Kit; a stale tab-hide snapshot
             // must not override a later manual pause in the PiP window.
             block(e);
         };
-        document.addEventListener('visibilitychange', visibilityChange, true);
-        document.addEventListener('webkitvisibilitychange', visibilityChange, true);
-        document.addEventListener('mozvisibilitychange', visibilityChange, true);
-        document.addEventListener('hasFocus', block, true);
+        document.addEventListener("visibilitychange", visibilityChange, true);
+        document.addEventListener(
+            "webkitvisibilitychange",
+            visibilityChange,
+            true,
+        );
+        document.addEventListener(
+            "mozvisibilitychange",
+            visibilityChange,
+            true,
+        );
+        document.addEventListener("hasFocus", block, true);
         try {
             if (/Firefox/.test(navigator.userAgent)) {
-                Object.defineProperty(document, 'mozHidden', {
+                Object.defineProperty(document, "mozHidden", {
                     get() {
                         return false;
-                    }
+                    },
                 });
             } else {
-                Object.defineProperty(document, 'webkitHidden', {
+                Object.defineProperty(document, "webkitHidden", {
                     get() {
                         return false;
-                    }
+                    },
                 });
             }
-        }catch{}
+        } catch {}
         // Hooks for preserving volume / resolution
         try {
             const keysToCache = [
-                'video-quality',
-                'video-muted',
-                'volume',
-                'lowLatencyModeEnabled',// Low Latency
-                'persistenceEnabled',// Mini Player
+                "video-quality",
+                "video-muted",
+                "volume",
+                "lowLatencyModeEnabled", // Low Latency
+                "persistenceEnabled", // Mini Player
             ];
             const cachedValues = new Map();
             for (let i = 0; i < keysToCache.length; i++) {
-                cachedValues.set(keysToCache[i], localStorage.getItem(keysToCache[i]));
+                cachedValues.set(
+                    keysToCache[i],
+                    localStorage.getItem(keysToCache[i]),
+                );
             }
             const realSetItem = localStorage.setItem;
-            localStorage.setItem = function(key, value) {
+            localStorage.setItem = function (key, value) {
                 if (cachedValues.has(key)) {
                     cachedValues.set(key, value);
                 }
                 realSetItem.apply(this, arguments);
             };
             const realGetItem = localStorage.getItem;
-            localStorage.getItem = function(key) {
+            localStorage.getItem = function (key) {
                 if (cachedValues.has(key)) {
                     return cachedValues.get(key);
                 }
                 return realGetItem.apply(this, arguments);
             };
-            if (!localStorage.getItem.toString().includes(Object.keys({cachedValues})[0])) {
+            if (
+                !localStorage.getItem
+                    .toString()
+                    .includes(Object.keys({ cachedValues })[0])
+            ) {
                 // These hooks are useful to preserve player state on player reload
                 // Firefox doesn't allow hooking of localStorage functions but chrome does
                 localStorageHookFailed = true;
             }
         } catch (err) {
-            console.log('localStorageHooks failed ' + err)
+            console.log("localStorageHooks failed " + err);
             localStorageHookFailed = true;
         }
     }
@@ -1125,32 +1580,39 @@
     if (PlayerBufferingFix) {
         monitorPlayerBuffering();
     }
-    if (document.readyState === "complete" || document.readyState === "loaded" || document.readyState === "interactive") {
+    if (
+        document.readyState === "complete" ||
+        document.readyState === "loaded" ||
+        document.readyState === "interactive"
+    ) {
         onContentLoaded();
     } else {
-        adPage.addEventListener("DOMContentLoaded", function() {
+        adPage.addEventListener("DOMContentLoaded", function () {
             onContentLoaded();
         });
     }
     adPage.simulateAds = (depth) => {
         if (depth === undefined || depth < 0) {
-            console.log('Ad depth paramter required (0 = no simulated ad, 1+ = use backup player for given depth)');
+            console.log(
+                "Ad depth paramter required (0 = no simulated ad, 1+ = use backup player for given depth)",
+            );
             return;
         }
-        postTwitchWorkerMessage('SimulateAds', depth);
+        postTwitchWorkerMessage("SimulateAds", depth);
     };
     adPage.allSegmentsAreAdSegments = () => {
-        postTwitchWorkerMessage('AllSegmentsAreAdSegments');
+        postTwitchWorkerMessage("AllSegmentsAreAdSegments");
     };
 })();
 
 (() => {
     "use strict";
 
-    const VERSION = "2026.10.28.5";
+    const VERSION = "2026.10.28.8";
 
     const DEFAULTS = Object.freeze({
         rewind: true,
+        seventv: true,
         maxQuality: true,
         autoClaimPoints: true,
         autoBackToLive: true,
@@ -1175,6 +1637,7 @@
 
     const TOGGLES = Object.freeze([
         ["rewind", "Live rewind"],
+        ["seventv", "7TV emotes"],
         ["maxQuality", "Max quality"],
         ["autoClaimPoints", "Claim points"],
         ["autoBackToLive", "Back to live"],
@@ -1232,7 +1695,10 @@
     if (isChatEmbed || (isFrame && !isEmbed)) return;
 
     // VAFT overrides document.hidden; use the browser's actual visibility state.
-    const isDocumentHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden").get.bind(document);
+    const isDocumentHidden = Object.getOwnPropertyDescriptor(
+        Document.prototype,
+        "hidden",
+    ).get.bind(document);
 
     const pageGlobal =
         typeof unsafeWindow === "object" && unsafeWindow
@@ -1250,12 +1716,15 @@
     }
 
     const markRuntime = () => {
-        if (document.documentElement && document.documentElement.dataset.twitchStabilityKit !== VERSION)
+        if (
+            document.documentElement &&
+            document.documentElement.dataset.twitchStabilityKit !== VERSION
+        )
             document.documentElement.dataset.twitchStabilityKit = VERSION;
     };
     markRuntime();
     const CHAT_MUTATION_SELECTOR =
-        '.chat-room, .chat-list, [data-a-target="chat-container"], [data-test-selector="chat-scrollable-area__message-container"]';
+        '.chat-room, .chat-list, .video-chat__message-list-wrapper, [data-a-target="chat-container"], [data-test-selector="chat-scrollable-area__message-container"]';
 
     const log = (...args) => {
         if (CONFIG.debug) console.debug("[TwitchKit]", ...args);
@@ -1322,10 +1791,14 @@
     function wrapCounterWriter(original) {
         if (typeof original !== "function") return original;
         const source = String(original);
-        if (!source.includes("formattingFn") || !source.includes("innerHTML")) return original;
+        if (!source.includes("formattingFn") || !source.includes("innerHTML"))
+            return original;
         return function (value) {
             const element = this.d;
-            if (element?.tagName !== "SPAN" || typeof this.options?.formattingFn !== "function") {
+            if (
+                element?.tagName !== "SPAN" ||
+                typeof this.options?.formattingFn !== "function"
+            ) {
                 return original.apply(this, arguments);
             }
             const output = this.options.formattingFn(value);
@@ -1337,7 +1810,10 @@
             const text = element.firstChild;
             if (text?.nodeType === 3 && !text.nextSibling) {
                 if (text.data !== output) text.data = output;
-            } else if (element.textContent !== output || element.childElementCount) {
+            } else if (
+                element.textContent !== output ||
+                element.childElementCount
+            ) {
                 element.textContent = output;
             }
         };
@@ -1345,17 +1821,25 @@
 
     function installCounterWriter(original) {
         Object.defineProperty(this, "printValue", {
-            value: wrapCounterWriter(original), writable: true, configurable: true, enumerable: true,
+            value: wrapCounterWriter(original),
+            writable: true,
+            configurable: true,
+            enumerable: true,
         });
     }
 
     function optimizeAnimatedNumbers() {
         if (counterWriterInstalled) return;
         const counters = [];
-        for (const element of document.querySelectorAll('span[class*="ScAnimatedNumber-"]')) {
+        for (const element of document.querySelectorAll(
+            'span[class*="ScAnimatedNumber-"]',
+        )) {
             for (let node = getReactFiber(element); node; node = node.return) {
                 const counter = node.stateNode?.instance;
-                if (counter?.d === element && typeof counter.printValue === "function") {
+                if (
+                    counter?.d === element &&
+                    typeof counter.printValue === "function"
+                ) {
                     counters.push(counter);
                     break;
                 }
@@ -1364,15 +1848,30 @@
         if (!counters.length) return;
         counterWriterInstalled = true;
         const Counter = counters[0].constructor;
-        if (typeof Counter !== "function" || !String(Counter).includes("[CountUp]")) return;
+        if (
+            typeof Counter !== "function" ||
+            !String(Counter).includes("[CountUp]")
+        )
+            return;
         const prototype = Counter.prototype;
-        if (!prototype || prototype === Object.prototype || !Object.isExtensible(prototype) ||
-            Object.getOwnPropertyDescriptor(prototype, "printValue")) return;
+        if (
+            !prototype ||
+            prototype === Object.prototype ||
+            !Object.isExtensible(prototype) ||
+            Object.getOwnPropertyDescriptor(prototype, "printValue")
+        )
+            return;
         // Legacy CountUp assigns this method in its constructor. Intercept that
         // assignment once; future counters need no rescanning, timers or hooks.
-        Object.defineProperty(prototype, "printValue", { configurable: true, set: installCounterWriter });
+        Object.defineProperty(prototype, "printValue", {
+            configurable: true,
+            set: installCounterWriter,
+        });
         for (const counter of counters) {
-            if (counter.constructor === Counter && Object.getOwnPropertyDescriptor(counter, "printValue")?.writable) {
+            if (
+                counter.constructor === Counter &&
+                Object.getOwnPropertyDescriptor(counter, "printValue")?.writable
+            ) {
                 counter.printValue = wrapCounterWriter(counter.printValue);
             }
         }
@@ -1383,6 +1882,26 @@
         const style = document.createElement("style");
         style.id = "twitch-kit-runtime-css";
         style.textContent = `
+
+      img.twitch-kit-emote {
+        display: inline-block;
+        height: 28px;
+        max-width: none;
+        vertical-align: middle;
+        object-fit: contain;
+      }
+      .twitch-kit-emote-stack {
+        display: inline-block;
+        position: relative;
+        height: 28px;
+        vertical-align: middle;
+      }
+      .twitch-kit-emote-stack > .twitch-kit-emote-overlay {
+        position: absolute;
+        top: 0;
+        left: 50%;
+        transform: translateX(-50%);
+      }
 
       .player-controls__right-control-group div:has(> #twitch-kit-pip-control) {
         display: flex !important;
@@ -1492,21 +2011,42 @@
         qualityParts(q).some((part) => part.toLowerCase().includes("auto"));
 
     function getReactFiber(root = getPlayerRoot()) {
-        const key = Object.keys(root || {}).find(key =>
-            key.startsWith("__reactFiber$") || key.startsWith("__reactInternalInstance$"));
+        const key = Object.keys(root || {}).find(
+            (key) =>
+                key.startsWith("__reactFiber$") ||
+                key.startsWith("__reactInternalInstance$"),
+        );
         let node = root?.[key];
         let top = node;
         while (top?.return) top = top.return;
-        if (top?.stateNode?.current && top.stateNode.current !== top && node?.alternate) node = node.alternate;
+        if (
+            top?.stateNode?.current &&
+            top.stateNode.current !== top &&
+            node?.alternate
+        )
+            node = node.alternate;
         return node;
     }
 
     function findPlayer() {
         for (let node = getReactFiber(); node; node = node.return) {
-            for (const value of [node.memoizedProps, node.memoizedProps?.value, node.stateNode, node.stateNode?.props]) {
-                const player = value?.mediaPlayerInstance || value?.playerInstance || value?.player || value;
+            for (const value of [
+                node.memoizedProps,
+                node.memoizedProps?.value,
+                node.stateNode,
+                node.stateNode?.props,
+            ]) {
+                const player =
+                    value?.mediaPlayerInstance ||
+                    value?.playerInstance ||
+                    value?.player ||
+                    value;
                 for (const candidate of [player, player?.core]) {
-                    if (typeof candidate?.getQualities === "function" && typeof candidate?.setQuality === "function") return candidate;
+                    if (
+                        typeof candidate?.getQualities === "function" &&
+                        typeof candidate?.setQuality === "function"
+                    )
+                        return candidate;
                 }
             }
         }
@@ -1532,8 +2072,8 @@
             if (!best) return false;
 
             const bestParts = qualityParts(best);
-            const currentIsBest = qualityParts(player.getQuality?.()).some((part) =>
-                bestParts.includes(part),
+            const currentIsBest = qualityParts(player.getQuality?.()).some(
+                (part) => bestParts.includes(part),
             );
             if (player.isAutoQualityMode?.()) player.setAutoQualityMode(false);
             if (currentIsBest) return true;
@@ -1557,7 +2097,8 @@
 
     function recordQualityStall() {
         const video = getMainVideo();
-        if (!CONFIG.maxQuality || !video || video.seeking || video.paused) return;
+        if (!CONFIG.maxQuality || !video || video.seeking || video.paused)
+            return;
         const now = Date.now();
         while (
             qualityStalls.length &&
@@ -1625,7 +2166,8 @@
             if (
                 label.includes("claim") &&
                 (label.includes("bonus") || label.includes("point")) &&
-                !button.disabled && isVisible(button)
+                !button.disabled &&
+                isVisible(button)
             ) {
                 claimPoints.lastClick = now;
                 button.click();
@@ -1635,7 +2177,6 @@
         }
     }
     claimPoints.lastClick = 0;
-
 
     /*
      * VOD lookup and CDN fallback adapted from:
@@ -1671,35 +2212,59 @@
         function context() {
             for (let node = getReactFiber(); node; node = node.return) {
                 const value = node.memoizedProps?.value;
-                if (typeof value?.setPlayerContent === "function" && "playbackID" in value) return value;
+                if (
+                    typeof value?.setPlayerContent === "function" &&
+                    "playbackID" in value
+                )
+                    return value;
             }
             return null;
         }
 
         function channelFromUrl() {
             if (isChatEmbed) return null;
-            if (isEmbed) return new URLSearchParams(location.search).get("channel")?.toLowerCase() || null;
-            return location.pathname.match(/^\/([a-z0-9_]+)\/?$/i)?.[1].toLowerCase() || null;
+            if (isEmbed)
+                return (
+                    new URLSearchParams(location.search)
+                        .get("channel")
+                        ?.toLowerCase() || null
+                );
+            return (
+                location.pathname
+                    .match(/^\/([a-z0-9_]+)\/?$/i)?.[1]
+                    .toLowerCase() || null
+            );
         }
 
         function current(s) {
             const value = context();
-            return session === s && !s.abort.signal.aborted && channelFromUrl() === s.channel &&
-                value?.setPlayerContent === s.owner && value.content?.channelLogin?.toLowerCase() === s.channel
-                ? value : null;
+            return session === s &&
+                !s.abort.signal.aborted &&
+                channelFromUrl() === s.channel &&
+                value?.setPlayerContent === s.owner &&
+                value.content?.channelLogin?.toLowerCase() === s.channel
+                ? value
+                : null;
         }
 
         function owns(s, content) {
-            return !!s.installedID && (content?.type === "live"
-                ? content.dvrVideoID === s.installedID
-                : content?.isDVR && content.vodID === s.installedID);
+            return (
+                !!s.installedID &&
+                (content?.type === "live"
+                    ? content.dvrVideoID === s.installedID
+                    : content?.isDVR && content.vodID === s.installedID)
+            );
         }
 
         function restore(s) {
             const value = context();
-            if (value?.setPlayerContent === s.owner &&
+            if (
+                value?.setPlayerContent === s.owner &&
                 value.content?.channelLogin?.toLowerCase() === s.channel &&
-                s.original && owns(s, value.content)) value.setPlayerContent(s.original);
+                s.original &&
+                owns(s, value.content)
+            )
+                value.setPlayerContent(s.original);
             s.original = null;
             s.installedID = null;
         }
@@ -1717,36 +2282,62 @@
         async function request(s, url, options = {}) {
             const response = await pageGlobal.fetch(url, {
                 ...options,
-                signal: AbortSignal.any([s.abort.signal, AbortSignal.timeout(10000)]),
+                signal: AbortSignal.any([
+                    s.abort.signal,
+                    AbortSignal.timeout(10000),
+                ]),
             });
-            if (!response.ok) throw new Error(`Rewind lookup: ${response.status}`);
+            if (!response.ok)
+                throw new Error(`Rewind lookup: ${response.status}`);
             return response;
         }
 
         async function gql(s, query, variables) {
             const response = await request(s, "https://gql.twitch.tv/gql", {
                 method: "POST",
-                headers: { "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko", "Content-Type": "application/json" },
+                headers: {
+                    "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko",
+                    "Content-Type": "application/json",
+                },
                 body: JSON.stringify({ query, variables }),
             });
             const result = await response.json();
-            if (result.errors?.length || !result.data) throw new Error("Rewind lookup unavailable");
+            if (result.errors?.length || !result.data)
+                throw new Error("Rewind lookup unavailable");
             return result.data;
         }
 
         async function verifyRecording(s, id) {
-            const data = await gql(s, 'query($id:ID!){videoPlaybackAccessToken(id:$id,params:{platform:"web",playerBackend:"mediaplayer",playerType:"site"}){value signature}}', { id });
+            const data = await gql(
+                s,
+                'query($id:ID!){videoPlaybackAccessToken(id:$id,params:{platform:"web",playerBackend:"mediaplayer",playerType:"site"}){value signature}}',
+                { id },
+            );
             const token = data.videoPlaybackAccessToken;
-            if (!token?.value || !token.signature) throw new Error("Recording unavailable");
-            const params = new URLSearchParams({ nauth: token.value, nauthsig: token.signature, allow_source: "true" });
+            if (!token?.value || !token.signature)
+                throw new Error("Recording unavailable");
+            const params = new URLSearchParams({
+                nauth: token.value,
+                nauthsig: token.signature,
+                allow_source: "true",
+            });
             // Only wire recordings Twitch serves directly. No entitlement changes.
-            const response = await request(s, `https://usher.ttvnw.net/vod/${id}.m3u8?${params}`);
-            if (!(await response.text()).startsWith("#EXTM3U")) throw new Error("Invalid recording playlist");
+            const response = await request(
+                s,
+                `https://usher.ttvnw.net/vod/${id}.m3u8?${params}`,
+            );
+            if (!(await response.text()).startsWith("#EXTM3U"))
+                throw new Error("Invalid recording playlist");
         }
 
         function apply(s, value = current(s)) {
             const content = value?.content;
-            if (!s.vodID || content?.type !== "live" || content.dvrVideoID === s.vodID) return;
+            if (
+                !s.vodID ||
+                content?.type !== "live" ||
+                content.dvrVideoID === s.vodID
+            )
+                return;
             if (content.dvrVideoID && !owns(s, content)) return;
             if (!s.original) s.original = content;
             s.installedID = s.vodID;
@@ -1758,12 +2349,19 @@
             s.checking = true;
             s.nextCheck = Date.now() + 30000;
             try {
-                const data = await gql(s, 'query($login:String!){user(login:$login){videos(first:5,sort:TIME,type:ARCHIVE){edges{node{id status}}}}}', { login: s.channel });
+                const data = await gql(
+                    s,
+                    "query($login:String!){user(login:$login){videos(first:5,sort:TIME,type:ARCHIVE){edges{node{id status}}}}}",
+                    { login: s.channel },
+                );
                 const value = current(s);
                 if (!value) return;
                 const edges = data.user?.videos?.edges;
-                if (data.user !== null && !Array.isArray(edges)) throw new Error("Incomplete recording lookup");
-                const id = edges?.find(edge => edge.node?.status === "RECORDING")?.node.id;
+                if (data.user !== null && !Array.isArray(edges))
+                    throw new Error("Incomplete recording lookup");
+                const id = edges?.find(
+                    (edge) => edge.node?.status === "RECORDING",
+                )?.node.id;
                 if (!id) {
                     if (++s.misses >= 2 && value.content.type === "live") {
                         restore(s);
@@ -1779,8 +2377,11 @@
                 }
                 apply(s);
             } catch (error) {
-                if (!s.abort.signal.aborted) log("native rewind", error.message);
-            } finally { s.checking = false; }
+                if (!s.abort.signal.aborted)
+                    log("native rewind", error.message);
+            } finally {
+                s.checking = false;
+            }
         }
 
         function update() {
@@ -1790,43 +2391,82 @@
             const route = channelFromUrl();
             // React can briefly detach the player while keeping its DVR provider.
             if (!value && session) {
-                if (!CONFIG.rewind || session.channel !== route) session.abort.abort();
+                if (!CONFIG.rewind || session.channel !== route)
+                    session.abort.abort();
                 return;
             }
-            const channel = CONFIG.rewind && content?.channelLogin?.toLowerCase() === route ? route : null;
-            if (!channel || (session && (session.abort.signal.aborted || session.channel !== channel || session.owner !== value?.setPlayerContent))) {
+            const channel =
+                CONFIG.rewind && content?.channelLogin?.toLowerCase() === route
+                    ? route
+                    : null;
+            if (
+                !channel ||
+                (session &&
+                    (session.abort.signal.aborted ||
+                        session.channel !== channel ||
+                        session.owner !== value?.setPlayerContent))
+            ) {
                 reset();
             }
-            if (content?.type !== "live" && content?.isDVR) document.documentElement.dataset.twitchKitRewinding = "1";
+            if (content?.type !== "live" && content?.isDVR)
+                document.documentElement.dataset.twitchKitRewinding = "1";
             else delete document.documentElement.dataset.twitchKitRewinding;
             if (!channel) return;
             // Existing native rewind (including its hidden-bar preference) wins.
-            if (!session && (content.type !== "live" || content.dvrVideoID)) return;
-            if (!session) session = { channel, owner: value.setPlayerContent, abort: new AbortController(), nextCheck: 0, misses: 0 };
+            if (!session && (content.type !== "live" || content.dvrVideoID))
+                return;
+            if (!session)
+                session = {
+                    channel,
+                    owner: value.setPlayerContent,
+                    abort: new AbortController(),
+                    nextCheck: 0,
+                    misses: 0,
+                };
             apply(session, value);
             check(session);
         }
 
         function seekBy(seconds) {
             const content = context()?.content;
-            if (!CONFIG.rewind || !content?.channelLogin ||
+            if (
+                !CONFIG.rewind ||
+                !content?.channelLogin ||
                 channelFromUrl() !== content.channelLogin.toLowerCase() ||
-                !(content.type === "live" ? content.dvrVideoID : content.isDVR)) return false;
-            const bar = getPlayerRoot()?.querySelector('[data-a-target="player-seekbar"]');
+                !(content.type === "live" ? content.dvrVideoID : content.isDVR)
+            )
+                return false;
+            const bar = getPlayerRoot()?.querySelector(
+                '[data-a-target="player-seekbar"]',
+            );
             if (!bar) return false; // Native controls remove this during ads.
             for (let node = getReactFiber(bar); node; node = node.return) {
                 const props = node.memoizedProps;
-                if (typeof props?.onThumbLocationChange !== "function" ||
-                    ![props.seekbarMin, props.seekbarMax, props.vodLength, props.thumbLocation].every(Number.isFinite) ||
-                    props.vodLength < props.seekbarMin) continue;
+                if (
+                    typeof props?.onThumbLocationChange !== "function" ||
+                    ![
+                        props.seekbarMin,
+                        props.seekbarMax,
+                        props.vodLength,
+                        props.thumbLocation,
+                    ].every(Number.isFinite) ||
+                    props.vodLength < props.seekbarMin
+                )
+                    continue;
                 // Older native seek completions can overwrite the thumb mid-burst.
-                const position = pendingSeek?.bar === bar ? pendingSeek.target : props.thumbLocation;
+                const position =
+                    pendingSeek?.bar === bar
+                        ? pendingSeek.target
+                        : props.thumbLocation;
                 // The newest recording ends before live; skip that unavailable gap.
                 let target = Math.max(props.seekbarMin, position + seconds);
                 if (seconds < 0) target = Math.min(target, props.vodLength);
                 else if (target >= props.vodLength) {
                     // Native LIVE changes content; a media seek into the gap cannot.
-                    const live = bar.parentElement?.parentElement?.querySelector('[role="button"]');
+                    const live =
+                        bar.parentElement?.parentElement?.querySelector(
+                            '[role="button"]',
+                        );
                     pendingSeek = null;
                     if (live) live.click();
                     return !!live || content.type === "live";
@@ -1840,12 +2480,23 @@
 
         window.addEventListener("pagehide", reset);
         return {
-            update, seekBy,
-            cancelSeek() { pendingSeek = null; },
-            finishSeek(video) {
-                if (pendingSeek && !video.seeking && Math.abs(video.currentTime - pendingSeek.target) < 1) pendingSeek = null;
+            update,
+            seekBy,
+            cancelSeek() {
+                pendingSeek = null;
             },
-            get active() { const content = context()?.content; return content?.type !== "live" && !!content?.isDVR; },
+            finishSeek(video) {
+                if (
+                    pendingSeek &&
+                    !video.seeking &&
+                    Math.abs(video.currentTime - pendingSeek.target) < 1
+                )
+                    pendingSeek = null;
+            },
+            get active() {
+                const content = context()?.content;
+                return content?.type !== "live" && !!content?.isDVR;
+            },
         };
     }
 
@@ -1962,7 +2613,10 @@
             const label = (button.textContent || "")
                 .replace(/\s+/g, " ")
                 .trim();
-            if (!/^(?:Gift Turbo|Gift a Sub|Get Ad-Free)$/i.test(label) || button.hidden)
+            if (
+                !/^(?:Gift Turbo|Gift a Sub|Get Ad-Free)$/i.test(label) ||
+                button.hidden
+            )
                 return;
             button.dataset.twitchKitHidden = "1";
             button.hidden = true;
@@ -2151,10 +2805,7 @@
     }
 
     function isPiPVideo(video = getMainVideo()) {
-        return (
-            !!video &&
-            nativePiPActive(getNativeMainVideo())
-        );
+        return !!video && nativePiPActive(getNativeMainVideo());
     }
 
     function stopPiPKeepalive() {
@@ -2195,10 +2846,22 @@
 
     function recoverPlaybackSoon(delayMs = 1000) {
         const video = getMainVideo();
-        if (!CONFIG.keepPlaying || !wasPlaying || !isPiPVideo(video) || playbackRecoveryTimer) return;
+        if (
+            !CONFIG.keepPlaying ||
+            !wasPlaying ||
+            !isPiPVideo(video) ||
+            playbackRecoveryTimer
+        )
+            return;
         playbackRecoveryTimer = window.setTimeout(() => {
             playbackRecoveryTimer = 0;
-            if (!CONFIG.keepPlaying || !wasPlaying || video !== getMainVideo() || !isPiPVideo(video)) return;
+            if (
+                !CONFIG.keepPlaying ||
+                !wasPlaying ||
+                video !== getMainVideo() ||
+                !isPiPVideo(video)
+            )
+                return;
             resumeVideo();
             if (CONFIG.maxQuality) forceBestQuality();
         }, delayMs);
@@ -2296,13 +2959,18 @@
         }
         video.addEventListener(
             "suspend",
-            () => { if (isManagedVideo(video)) recoverPlaybackSoon(1500); },
+            () => {
+                if (isManagedVideo(video)) recoverPlaybackSoon(1500);
+            },
             true,
         );
         video.addEventListener(
             "loadedmetadata",
             () => {
-                if (isManagedVideo(video)) { rewind.update(); burstQuality(8000); }
+                if (isManagedVideo(video)) {
+                    rewind.update();
+                    burstQuality(8000);
+                }
             },
             true,
         );
@@ -2325,7 +2993,8 @@
         const video = getMainVideo();
         try {
             if (
-                video?.paused && boundVideos.has(video) &&
+                video?.paused &&
+                boundVideos.has(video) &&
                 !video.ended &&
                 (video.readyState >= 2 || isPiPVideo(video))
             ) {
@@ -2416,6 +3085,10 @@
     }
 
     function applyToggleChange(key) {
+        if (key === "seventv") {
+            sevenTV.update();
+            return;
+        }
         if (key === "maxQuality" && !CONFIG.maxQuality) stopQualityBurst();
         if (key === "wakeLock" && !CONFIG.wakeLock) releaseWakeLock();
         if (
@@ -2446,18 +3119,252 @@
         return mutations.some((mutation) => {
             const target = mutationTarget(mutation);
             if (!target?.closest) return true;
-            if (target.closest(CHAT_MUTATION_SELECTOR) &&
-                !target.closest('[data-test-selector="community-points-summary"]')) return false;
+            if (
+                target.closest(CHAT_MUTATION_SELECTOR) &&
+                !target.closest(
+                    '[data-test-selector="community-points-summary"]',
+                )
+            )
+                return false;
             // Time labels and ad-status text do not require rescanning the page.
-            return [...mutation.addedNodes, ...mutation.removedNodes].some(node => node.nodeType === 1) ||
-                !!target.closest("button");
+            return (
+                [...mutation.addedNodes, ...mutation.removedNodes].some(
+                    (node) => node.nodeType === 1,
+                ) || !!target.closest("button")
+            );
         });
     }
 
+    // Public 7TV API, native Twitch message fragments. No replacement chat renderer.
+    function createSevenTV() {
+        const CHAT =
+            '[data-test-selector="chat-scrollable-area__message-container"], .video-chat__message-list-wrapper';
+        const TEXT = '.text-fragment[data-a-target="chat-message-text"]';
+        const image = document.createElement("img");
+        Object.assign(image, {
+            className: "twitch-kit-emote",
+            height: 28,
+            loading: "lazy",
+            decoding: "async",
+            referrerPolicy: "no-referrer",
+        });
+        let root = null,
+            channelID = null,
+            observer = null,
+            controller = null;
+        let emotes = new Map(),
+            globals = null;
+
+        async function request(path, signal) {
+            const response = await pageGlobal.fetch(
+                `https://7tv.io/v3/${path}`,
+                {
+                    credentials: "omit",
+                    signal: signal
+                        ? AbortSignal.any([signal, AbortSignal.timeout(10000)])
+                        : AbortSignal.timeout(10000),
+                },
+            );
+            if (!response.ok) throw new Error(`7TV: ${response.status}`);
+            return response.json();
+        }
+
+        function index(set) {
+            const result = new Map();
+            for (const emote of Array.isArray(set?.emotes) ? set.emotes : []) {
+                const host = emote?.data?.host;
+                const file = Array.isArray(host?.files)
+                    ? host.files.find((file) => file?.name === "2x.webp")
+                    : null;
+                const url =
+                    typeof host?.url === "string"
+                        ? host.url.replace(/^\/\//, "https://")
+                        : "";
+                if (
+                    typeof emote?.name !== "string" ||
+                    !emote.name ||
+                    /\s/.test(emote.name) ||
+                    !/^https:\/\/cdn\.7tv\.app\/emote\/[a-z0-9]+$/i.test(url) ||
+                    !Number.isFinite(file?.width) ||
+                    !Number.isFinite(file.height) ||
+                    file.width <= 0 ||
+                    file.height <= 0
+                )
+                    continue;
+                result.set(emote.name, {
+                    src: `${url}/${file.name}`,
+                    width: Math.min(
+                        112,
+                        Math.round((28 * file.width) / file.height),
+                    ),
+                    overlay: !!(emote.data.flags & 256),
+                });
+            }
+            return result;
+        }
+
+        function render(span) {
+            if (
+                !emotes.size ||
+                !span.matches?.(TEXT) ||
+                !span.isConnected ||
+                span.childElementCount ||
+                span.closest("a,button")
+            )
+                return;
+            delete span.dataset.twitchKitEmotes; // React may recycle the span with new text.
+            const text = span.textContent;
+            let output = null,
+                cursor = 0,
+                previous = null;
+            for (const match of text.matchAll(/\S+/g)) {
+                const emote = emotes.get(match[0]);
+                if (!emote) continue;
+                output ||= document.createDocumentFragment();
+                const gap = text.slice(cursor, match.index);
+                const img = image.cloneNode(false);
+                img.alt = img.title = match[0];
+                img.width = emote.width;
+                img.src = emote.src;
+                if (emote.overlay && previous && /^\s*$/.test(gap)) {
+                    if (previous.tagName === "IMG") {
+                        const stack = document.createElement("span");
+                        stack.className = "twitch-kit-emote-stack";
+                        stack.style.width = `${previous.width}px`;
+                        stack.title = previous.title;
+                        previous.removeAttribute("title");
+                        output.replaceChild(stack, previous);
+                        stack.append(previous);
+                        previous = stack;
+                    }
+                    img.classList.add("twitch-kit-emote-overlay");
+                    img.removeAttribute("title");
+                    previous.title += ` ${match[0]}`;
+                    previous.append(img);
+                } else {
+                    output.append(gap, img);
+                    previous = img;
+                }
+                cursor = match.index + match[0].length;
+            }
+            if (!output) return;
+            output.append(text.slice(cursor));
+            span.dataset.twitchKitEmotes = text;
+            span.replaceChildren(output);
+        }
+
+        function scan(node) {
+            if (node.nodeType !== 1 || !node.isConnected || !emotes.size)
+                return;
+            if (node.matches(TEXT)) render(node);
+            else node.querySelectorAll(TEXT).forEach(render);
+        }
+
+        function restore(container) {
+            container
+                ?.querySelectorAll("[data-twitch-kit-emotes]")
+                .forEach((span) => {
+                    if (span.querySelector("img.twitch-kit-emote"))
+                        span.textContent = span.dataset.twitchKitEmotes;
+                    delete span.dataset.twitchKitEmotes;
+                });
+        }
+
+        async function load(id, signal) {
+            globals ||= request("emote-sets/global")
+                .then(index)
+                .catch(() => {
+                    globals = null;
+                    return new Map();
+                });
+            const channel = id
+                ? request(`users/twitch/${id}`, signal)
+                      .then(async (connection) =>
+                          index(
+                              connection.emote_set ||
+                                  (connection.emote_set_id
+                                      ? await request(
+                                            `emote-sets/${encodeURIComponent(connection.emote_set_id)}`,
+                                            signal,
+                                        )
+                                      : null),
+                          ),
+                      )
+                      .catch(() => new Map())
+                : Promise.resolve(new Map());
+            const [globalSet, channelSet] = await Promise.all([
+                globals,
+                channel,
+            ]);
+            if (signal.aborted) return;
+            emotes = new Map([...globalSet, ...channelSet]);
+            if (root) scan(root);
+        }
+
+        function update() {
+            const next = CONFIG.seventv ? document.querySelector(CHAT) : null;
+            let id = next ? "" : null;
+            for (
+                let node = next && getReactFiber(next);
+                node;
+                node = node.return
+            ) {
+                if (/^\d+$/.test(node.memoizedProps?.channelID)) {
+                    id = String(node.memoizedProps.channelID);
+                    break;
+                }
+            }
+            const moved = next !== root;
+            if (moved) {
+                observer?.disconnect();
+                restore(root);
+                root = next;
+                if (root) {
+                    observer ||= new MutationObserver((mutations) => {
+                        for (const mutation of mutations) {
+                            const target =
+                                mutation.target.nodeType === 3
+                                    ? mutation.target.parentElement
+                                    : mutation.target;
+                            if (target?.matches(TEXT)) render(target);
+                            else
+                                for (const node of mutation.addedNodes)
+                                    scan(node);
+                        }
+                    });
+                    observer.observe(root, {
+                        childList: true,
+                        subtree: true,
+                        characterData: true,
+                    });
+                }
+            }
+            if (id !== channelID) {
+                controller?.abort();
+                restore(root);
+                emotes.clear();
+                channelID = id;
+                if (root) {
+                    controller = new AbortController();
+                    load(id, controller.signal);
+                }
+            } else if (moved && root) scan(root);
+        }
+
+        return {
+            update,
+            get connected() {
+                return !CONFIG.seventv || !!root?.isConnected;
+            },
+        };
+    }
+
     const rewind = createRewind();
+    const sevenTV = createSevenTV();
 
     function runDomWork() {
         rewind.update();
+        sevenTV.update();
         optimizeAnimatedNumbers();
         markRuntime();
         injectRuntimeCss();
@@ -2519,7 +3426,14 @@
             });
             pageHistory[name] = wrapped;
         }
-        window.addEventListener("popstate", () => { rewind.update(); onPageActivity(); }, true);
+        window.addEventListener(
+            "popstate",
+            () => {
+                rewind.update();
+                onPageActivity();
+            },
+            true,
+        );
     }
 
     injectRuntimeCss();
@@ -2538,10 +3452,17 @@
         true,
     );
 
-    document.addEventListener("pointerover", (event) => {
-        if (event.target?.closest?.(PLAYER_ROOT_SELECTOR) &&
-            !event.relatedTarget?.closest?.(PLAYER_ROOT_SELECTOR)) scheduleDomWork();
-    }, true);
+    document.addEventListener(
+        "pointerover",
+        (event) => {
+            if (
+                event.target?.closest?.(PLAYER_ROOT_SELECTOR) &&
+                !event.relatedTarget?.closest?.(PLAYER_ROOT_SELECTOR)
+            )
+                scheduleDomWork();
+        },
+        true,
+    );
 
     document.addEventListener(
         "keydown",
@@ -2560,10 +3481,23 @@
                 event.altKey
             )
                 return;
-            if ((event.key === "ArrowLeft" || event.key === "ArrowRight") && !event.shiftKey) {
+            if (
+                (event.key === "ArrowLeft" || event.key === "ArrowRight") &&
+                !event.shiftKey
+            ) {
                 const root = getPlayerRoot();
-                if (target !== document.body && target !== document.documentElement && !root?.contains(target)) return;
-                if (target?.closest?.('[contenteditable], [role="textbox"], [role="slider"], [role="menu"], [role="dialog"], button[aria-expanded="true"]')) return;
+                if (
+                    target !== document.body &&
+                    target !== document.documentElement &&
+                    !root?.contains(target)
+                )
+                    return;
+                if (
+                    target?.closest?.(
+                        '[contenteditable], [role="textbox"], [role="slider"], [role="menu"], [role="dialog"], button[aria-expanded="true"]',
+                    )
+                )
+                    return;
                 if (rewind.seekBy(event.key === "ArrowLeft" ? -10 : 10)) {
                     event.preventDefault();
                     event.stopImmediatePropagation();
@@ -2609,6 +3543,7 @@
         requestWakeLock();
 
         const observer = new MutationObserver((mutations) => {
+            if (!sevenTV.connected) sevenTV.update();
             if (hasNonChatMutation(mutations)) scheduleDomWork();
         });
         observer.observe(document.body, { childList: true, subtree: true });
