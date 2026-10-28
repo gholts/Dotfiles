@@ -6,7 +6,7 @@ const vm = require('node:vm');
 const source = readFileSync(path.join(__dirname, '../twitch-stability-kit.user.js'), 'utf8');
 
 function runtimeHarness() {
-    const h = { now: 10000, hidden: false, timers: new Map(), intervals: new Map(), buttons: [], icons: [], rectReads: 0, qualityReads: 0, qualityCalls: [], auto: true };
+    const h = { now: 10000, hidden: false, timers: new Map(), intervals: new Map(), buttons: [], icons: [], counters: [], rectReads: 0, qualityReads: 0, qualityCalls: [], auto: true };
     let timerID = 0;
     class Doc extends EventTarget { get hidden() { return h.hidden; } }
     const document = new Doc();
@@ -15,7 +15,7 @@ function runtimeHarness() {
     document.documentElement = { dataset: {} };
     document.getElementById = () => null;
     document.querySelector = selector => selector.includes('video-player') ? h.root : null;
-    document.querySelectorAll = selector => selector.startsWith('button') ? h.buttons : selector === '.claimable-bonus__icon' ? h.icons : [];
+    document.querySelectorAll = selector => selector.startsWith('button') ? h.buttons : selector === '.claimable-bonus__icon' ? h.icons : selector.startsWith('span[') ? h.counters : [];
     const window = new EventTarget();
     Object.assign(window, {
         self: window, top: window, document,
@@ -63,7 +63,7 @@ function runtimeHarness() {
     const startup = main.indexOf('    injectRuntimeCss();\n    injectCleanerCss();\n    patchNavigation();');
     const events = main.slice(main.indexOf('    document.addEventListener(\n        "pointerdown"', startup), main.indexOf('    onceBody(() =>', startup));
     main = main.slice(0, startup) + events + `\nthis.runtime = {
-        CONFIG, findPlayer, forceBestQuality, recordQualityStall, claimPoints,
+        CONFIG, findPlayer, wrapCounterWriter, optimizeAnimatedNumbers, forceBestQuality, recordQualityStall, claimPoints,
         hasNonChatMutation, ensurePiPButton, updatePiPKeepalive, bindVideo,
         recoverPlaybackSoon, resumeVideo, requestWakeLock, releaseWakeLock, isDocumentHidden,
         get wasPlaying() { return wasPlaying; }, set wasPlaying(value) { wasPlaying = value; },
@@ -281,4 +281,115 @@ test('Kit still resumes an involuntary ordinary background pause after vendor au
     resume.fn();
     assert.equal(h.video.paused, false);
     assert.equal(h.video.playCalls, 1);
+});
+
+function counterSpan(value = '') {
+    let content = value;
+    const writes = { html: [], text: [], data: [] };
+    const text = { nodeType: 3, nextSibling: null };
+    Object.defineProperty(text, 'data', { get: () => content, set: value => { content = value; writes.data.push(value); } });
+    const element = { tagName: 'SPAN', firstChild: text, childElementCount: 0, writes };
+    Object.defineProperties(element, {
+        textContent: { get: () => content, set: value => { content = value; writes.text.push(value); } },
+        innerHTML: { get: () => content, set: value => { content = value; writes.html.push(value); } },
+    });
+    return element;
+}
+
+function nativeCounterFixture(h) {
+    function CountUp(element) {
+        if (!element) throw new Error('[CountUp] target is null or undefined');
+        this.options = { formattingFn: String };
+        this.printValue = function (value) { this.d.innerHTML = this.options.formattingFn(value); };
+        this.d = element;
+        this.start = callback => { this.printValue(100); callback(); };
+    }
+    const element = counterSpan('100');
+    const counter = new CountUp(element);
+    element.__reactFiber$counter = { return: { stateNode: { instance: counter } } };
+    h.counters.push(element);
+    return { CountUp, counter, element };
+}
+
+test('counter writer skips equal formatted frames and reuses text node for changes', () => {
+    const h = runtimeHarness();
+    const element = counterSpan('100');
+    const text = element.firstChild;
+    let formattingCalls = 0;
+    const counter = { d: element, options: { formattingFn(value) { formattingCalls++; return String(Math.round(value)); } } };
+    counter.printValue = h.runtime.wrapCounterWriter(function(value) { this.d.innerHTML = this.options.formattingFn(value); });
+    for (let i = 0; i < 1000; i++) counter.printValue(100.1);
+    assert.equal(formattingCalls, 1000);
+    assert.deepEqual(element.writes, { html: [], text: [], data: [] });
+    counter.printValue(101);
+    counter.printValue(0);
+    assert.equal(element.firstChild, text);
+    assert.deepEqual(element.writes.data, ['101', '0']);
+    assert.equal(element.writes.html.length, 0);
+});
+
+test('counter writer preserves HTML, entities, non-string values and formatting receiver', () => {
+    const h = runtimeHarness();
+    for (const value of ['<b>123</b>', '&nbsp;10', '\r12', '\u000012', 123, null, { trustedHTML: true }]) {
+        const element = counterSpan('');
+        const options = { formattingFn() { assert.equal(this, options); return value; } };
+        const counter = { d: element, options };
+        h.runtime.wrapCounterWriter(function(value) { this.d.innerHTML = this.options.formattingFn(value); }).call(counter, 0);
+        assert.equal(element.writes.html[0], value);
+    }
+});
+
+test('non-span counter targets retain original behavior and return value', () => {
+    const h = runtimeHarness();
+    const input = { tagName: 'INPUT', value: '' };
+    const counter = { d: input, options: { formattingFn: String } };
+    const original = function (value, suffix) {
+        const output = this.options.formattingFn(value) + suffix;
+        if (this.d.tagName === 'INPUT') this.d.value = output;
+        else this.d.innerHTML = output;
+        return 'native';
+    };
+    const wrapped = h.runtime.wrapCounterWriter(original);
+    assert.notEqual(wrapped, original);
+    assert.equal(wrapped.call(counter, '12', '%'), 'native');
+    assert.equal(input.value, '12%');
+});
+
+test('one-time native hook covers existing and future counters without rescanning or changing lifecycle', () => {
+    const h = runtimeHarness();
+    const { CountUp, counter, element } = nativeCounterFixture(h);
+    const start = counter.start;
+    h.runtime.optimizeAnimatedNumbers();
+    counter.printValue(100);
+    assert.equal(element.writes.html.length, 0);
+    assert.equal(counter.start, start);
+    let completed = 0;
+    counter.start(() => completed++);
+    assert.equal(completed, 1);
+    const nextElement = counterSpan('100');
+    const next = new CountUp(nextElement);
+    next.printValue(100);
+    next.printValue(101);
+    assert.equal(nextElement.writes.html.length, 0);
+    assert.deepEqual(nextElement.writes.data, ['101']);
+    assert.equal(Object.getOwnPropertyDescriptor(next, 'printValue').enumerable, true);
+    h.document.querySelectorAll = () => { throw new Error('steady-state rescan'); };
+    h.runtime.optimizeAnimatedNumbers();
+});
+
+test('counter hook leaves unknown engines and existing prototype patches untouched', () => {
+    const h = runtimeHarness();
+    const { CountUp, counter } = nativeCounterFixture(h);
+    const original = counter.printValue;
+    Object.defineProperty(CountUp.prototype, 'printValue', { value: function () {} });
+    h.runtime.optimizeAnimatedNumbers();
+    assert.equal(counter.printValue, original);
+
+    const other = runtimeHarness();
+    const element = counterSpan('1');
+    const instance = { d: element, printValue() {}, options: { formattingFn: String } };
+    element.__reactFiber$counter = { return: { stateNode: { instance } } };
+    other.counters.push(element);
+    other.runtime.optimizeAnimatedNumbers();
+    assert.equal(Object.prototype.hasOwnProperty('printValue'), false);
 });

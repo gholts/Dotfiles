@@ -40,7 +40,7 @@ function harness() {
         } },
         getPlayerRoot: () => root, log() {},
     });
-    const code = between('    function getPlayerFiber(', '    function findPlayer()') + between('    function createRewind()', '    const backToLivePatterns');
+    const code = between('    function getReactFiber(', '    function findPlayer()') + between('    function createRewind()', '    const backToLivePatterns');
     vm.runInContext(code.replace('return { update, get active()', 'return { update, context, get session() { return session; }, get active()') + '\nthis.rewind = createRewind();', context);
     return { env, document, window, root, fiber, top, provider, location, CONFIG, rewind: context.rewind, get content() { return provider.memoizedProps.value.content; } };
 }

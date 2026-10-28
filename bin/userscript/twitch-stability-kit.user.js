@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitch Stability Kit
 // @namespace    gholts.twitch.stability-kit
-// @version      2026.10.28.1
+// @version      2026.10.28.2
 // @description  Live rewind, VOD playback, ad suppression, max quality, channel points, UI cleanup, and playback keepalive for Twitch and MultiTwitch embeds.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -1147,7 +1147,7 @@
 (() => {
     "use strict";
 
-    const VERSION = "2026.10.28.1";
+    const VERSION = "2026.10.28.2";
 
     const DEFAULTS = Object.freeze({
         rewind: true,
@@ -1317,6 +1317,67 @@
         return root.contains(lastMainVideo) ? lastMainVideo : null;
     }
 
+    let counterWriterInstalled = false;
+
+    function wrapCounterWriter(original) {
+        if (typeof original !== "function") return original;
+        const source = String(original);
+        if (!source.includes("formattingFn") || !source.includes("innerHTML")) return original;
+        return function (value) {
+            const element = this.d;
+            if (element?.tagName !== "SPAN" || typeof this.options?.formattingFn !== "function") {
+                return original.apply(this, arguments);
+            }
+            const output = this.options.formattingFn(value);
+            // Preserve CountUp's HTML/TrustedHTML formatting and parser semantics.
+            if (typeof output !== "string" || /[<&\r\u0000]/.test(output)) {
+                element.innerHTML = output;
+                return;
+            }
+            const text = element.firstChild;
+            if (text?.nodeType === 3 && !text.nextSibling) {
+                if (text.data !== output) text.data = output;
+            } else if (element.textContent !== output || element.childElementCount) {
+                element.textContent = output;
+            }
+        };
+    }
+
+    function installCounterWriter(original) {
+        Object.defineProperty(this, "printValue", {
+            value: wrapCounterWriter(original), writable: true, configurable: true, enumerable: true,
+        });
+    }
+
+    function optimizeAnimatedNumbers() {
+        if (counterWriterInstalled) return;
+        const counters = [];
+        for (const element of document.querySelectorAll('span[class*="ScAnimatedNumber-"]')) {
+            for (let node = getReactFiber(element); node; node = node.return) {
+                const counter = node.stateNode?.instance;
+                if (counter?.d === element && typeof counter.printValue === "function") {
+                    counters.push(counter);
+                    break;
+                }
+            }
+        }
+        if (!counters.length) return;
+        counterWriterInstalled = true;
+        const Counter = counters[0].constructor;
+        if (typeof Counter !== "function" || !String(Counter).includes("[CountUp]")) return;
+        const prototype = Counter.prototype;
+        if (!prototype || prototype === Object.prototype || !Object.isExtensible(prototype) ||
+            Object.getOwnPropertyDescriptor(prototype, "printValue")) return;
+        // Legacy CountUp assigns this method in its constructor. Intercept that
+        // assignment once; future counters need no rescanning, timers or hooks.
+        Object.defineProperty(prototype, "printValue", { configurable: true, set: installCounterWriter });
+        for (const counter of counters) {
+            if (counter.constructor === Counter && Object.getOwnPropertyDescriptor(counter, "printValue")?.writable) {
+                counter.printValue = wrapCounterWriter(counter.printValue);
+            }
+        }
+    }
+
     function injectRuntimeCss() {
         if (document.getElementById("twitch-kit-runtime-css")) return;
         const style = document.createElement("style");
@@ -1430,8 +1491,7 @@
     const isAutoQuality = (q) =>
         qualityParts(q).some((part) => part.toLowerCase().includes("auto"));
 
-    function getPlayerFiber() {
-        const root = getPlayerRoot();
+    function getReactFiber(root = getPlayerRoot()) {
         const key = Object.keys(root || {}).find(key =>
             key.startsWith("__reactFiber$") || key.startsWith("__reactInternalInstance$"));
         let node = root?.[key];
@@ -1442,7 +1502,7 @@
     }
 
     function findPlayer() {
-        for (let node = getPlayerFiber(); node; node = node.return) {
+        for (let node = getReactFiber(); node; node = node.return) {
             for (const value of [node.memoizedProps, node.memoizedProps?.value, node.stateNode, node.stateNode?.props]) {
                 const player = value?.mediaPlayerInstance || value?.playerInstance || value?.player || value;
                 for (const candidate of [player, player?.core]) {
@@ -1608,7 +1668,7 @@
         let session = null;
 
         function context() {
-            for (let node = getPlayerFiber(); node; node = node.return) {
+            for (let node = getReactFiber(); node; node = node.return) {
                 const value = node.memoizedProps?.value;
                 if (typeof value?.setPlayerContent === "function" && "playbackID" in value) return value;
             }
@@ -2353,6 +2413,7 @@
 
     function runDomWork() {
         rewind.update();
+        optimizeAnimatedNumbers();
         markRuntime();
         injectRuntimeCss();
         injectCleanerCss();
