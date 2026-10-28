@@ -1353,6 +1353,18 @@
         const style = document.createElement("style");
         style.id = "twitch-kit-css";
         style.textContent = `
+      /* Persistent slots: React may replace contents or set inline display again. */
+      #directory-banner,
+      [data-a-target="browse-banner-ad-slot"],
+      [data-test-selector="sda-wrapper"],
+      [data-test-selector^="channel-skins-"],
+      .channel-skins-banner__interactive,
+      .channel-skins-ribbon__container,
+      .channel-skins-ribbon__v2-container,
+      div:has(> .channel-skins-banner__interactive),
+      div:has(> .channel-skins-ribbon__container),
+      div[aria-label="Advertisement"],
+      iframe[title="Display Ad"],
       [data-test-selector="extension-disclaimer"],
       [data-a-target="top-nav-get-bits-button"],
       [data-a-target="top-nav-get-bits-button"] ~ .tw-new-item-indicator__container,
@@ -1367,7 +1379,8 @@
       [data-test-selector="masonry_container_selector"],
       [data-test-selector="user-notice-line"],
       #twilight-sticky-footer-root,
-      div.tw-root--theme-light:has(> [style*="Channel_Promo_Banner_Web"]),
+      [style*="Channel_Promo_Banner" i],
+      .channel-info-content div:has(> [style*="Channel_Promo_Banner" i]),
       .chat-room div:has(> div > button[aria-label="Previous leaderboard set" i]),
       .chat-room div:has(> div > button[aria-label$="Leaderboard" i]),
       html body [data-a-target="side-nav-stories-root"],
@@ -1384,7 +1397,7 @@
         display: none !important;
       }
     `;
-        (document.head || document.documentElement).appendChild(style);
+        (document.head || document.documentElement)?.appendChild(style);
     }
 
     const qualityLabel = (q) =>
