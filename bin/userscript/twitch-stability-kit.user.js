@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Twitch Stability Kit
 // @namespace    gholts.twitch.stability-kit
-// @version      2026.09.19.1
-// @description  Ad suppression, max quality, channel points, live recovery, UI cleanup, and gentle playback keepalive for Twitch and MultiTwitch embeds.
+// @version      2026.10.28.1
+// @description  Live rewind, VOD playback, ad suppression, max quality, channel points, UI cleanup, and playback keepalive for Twitch and MultiTwitch embeds.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
 // @homepageURL  https://github.com/Gholts/Dotfiles/tree/main/bin/userscript
@@ -26,6 +26,7 @@
 // Vendored TwitchAdSolutions VAFT 37.0.0 (internal version 24).
 // Source: https://github.com/pixeltris/TwitchAdSolutions/tree/f8f86706daf90daa534b26bce5b2f01238667d5f/vaft
 // License: MIT
+// Local fixes: worker cleanup, bounded player lookup, async playlist handling, VOD fallback.
 (function() {
     'use strict';
     // Chat-only frames (including MultiTwitch) need no player or visibility hooks.
@@ -34,7 +35,6 @@
     const ourTwitchAdSolutionsVersion = 24;// Used to prevent conflicts with outdated versions of the scripts
     if (typeof adPage.twitchAdSolutionsVersion !== 'undefined' && adPage.twitchAdSolutionsVersion >= ourTwitchAdSolutionsVersion) {
         console.log("skipping vaft as there's another script active. ourVersion:" + ourTwitchAdSolutionsVersion + " activeVersion:" + adPage.twitchAdSolutionsVersion);
-        adPage.twitchAdSolutionsVersion = ourTwitchAdSolutionsVersion;
         return;
     }
     adPage.twitchAdSolutionsVersion = ourTwitchAdSolutionsVersion;
@@ -78,7 +78,7 @@
     }
     let isActivelyStrippingAds = false;
     let localStorageHookFailed = false;
-    const twitchWorkers = [];
+    const twitchWorkers = new Set();
     const workerStringConflicts = [
         'twitch',
         'isVariantA'// TwitchNoSub
@@ -140,9 +140,10 @@
         const reinsert = getWorkersForReinsert(adPage.Worker);
         const newWorker = class Worker extends getCleanWorker(adPage.Worker) {
             constructor(twitchBlobUrl, options) {
+                twitchBlobUrl = String(twitchBlobUrl);
                 let isTwitchWorker = false;
                 try {
-                    isTwitchWorker = new URL(twitchBlobUrl).origin.endsWith('.twitch.tv');
+                    isTwitchWorker = options?.type !== 'module' && new URL(twitchBlobUrl).origin.endsWith('.twitch.tv');
                 } catch {}
                 if (!isTwitchWorker) {
                     super(twitchBlobUrl, options);
@@ -154,6 +155,7 @@
                     ${getStreamUrlForResolution.toString()}
                     ${processM3U8.toString()}
                     ${hookWorkerFetch.toString()}
+                    ${createVodFetch.toString()}
                     ${declareOptions.toString()}
                     ${getAccessToken.toString()}
                     ${gqlRequest.toString()}
@@ -211,8 +213,13 @@
                     hookWorkerFetch();
                     eval(workerString);
                 `;
-                super(URL.createObjectURL(new Blob([newBlobStr])), options);
-                twitchWorkers.push(this);
+                const blobUrl = URL.createObjectURL(new Blob([newBlobStr]));
+                try { super(blobUrl, options); }
+                catch (error) { URL.revokeObjectURL(blobUrl); throw error; }
+                this.twitchKitBlobUrl = blobUrl;
+                this.addEventListener('message', () => URL.revokeObjectURL(blobUrl), { once: true });
+                this.addEventListener('error', () => URL.revokeObjectURL(blobUrl), { once: true });
+                twitchWorkers.add(this);
                 this.addEventListener('message', (e) => {
                     if (e.data.key == 'UpdateAdBlockBanner') {
                         updateAdblockBanner(e.data);
@@ -232,6 +239,11 @@
                         });
                     }
                 });
+            }
+            terminate() {
+                twitchWorkers.delete(this);
+                if (this.twitchKitBlobUrl) URL.revokeObjectURL(this.twitchKitBlobUrl);
+                return super.terminate();
             }
         };
         let workerInstance = reinsertWorkers(newWorker, reinsert);
@@ -255,152 +267,174 @@
         req.send();
         return req.responseText;
     }
+    // Shared with the existing VAFT worker. No second Worker constructor hook.
+    function createVodFetch(originalFetch) {
+        const qualities = ["chunked", "1080p60", "720p60", "480p30", "360p30", "160p30"];
+        async function request(url, init = {}) {
+            const signal = init.signal
+                ? AbortSignal.any([init.signal, AbortSignal.timeout(10000)])
+                : AbortSignal.timeout(10000);
+            return originalFetch(url, { ...init, signal });
+        }
+        async function unlock(vodId, signal) {
+            const response = await request("https://gql.twitch.tv/gql", {
+                method: "POST", signal,
+                headers: { "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko", "Content-Type": "application/json" },
+                body: JSON.stringify({ query: 'query($id:ID!){video(id:$id){broadcastType createdAt seekPreviewsURL owner{login}}}', variables: { id: vodId } }),
+            });
+            if (!response.ok) return null;
+            const data = await response.json();
+            const video = data.data?.video;
+            if (data.errors?.length || !video?.seekPreviewsURL) return null;
+            const preview = new URL(video.seekPreviewsURL);
+            const parts = preview.pathname.split("/");
+            const index = parts.findIndex(part => part.includes("storyboards"));
+            if (preview.protocol !== "https:" || index < 1) return null;
+            const special = parts[index - 1];
+            const type = video.broadcastType?.toLowerCase();
+            let prefix = `${preview.origin}/${special}`;
+            if (type === "upload" && Date.parse(video.createdAt) < Date.now() - 7 * 86400000) {
+                prefix = `${preview.origin}/${video.owner.login}/${vodId}/${special}`;
+            }
+            const results = await Promise.all(qualities.map(async (quality, i) => {
+                const url = `${prefix}/${quality}/${type === "highlight" ? `highlight-${vodId}` : "index-dvr"}.m3u8`;
+                try {
+                    const r = await request(url, { signal });
+                    if (!r.ok || !(await r.text()).startsWith("#EXTM3U")) return "";
+                    const match = quality.match(/(\d+)p(\d+)/);
+                    const height = match ? +match[1] : 0;
+                    const resolution = height ? `,RESOLUTION=${Math.round(height * 16 / 9 / 2) * 2}x${height},FRAME-RATE=${match[2]}` : "";
+                    // Don't invent source codec/resolution: Twitch also serves HEVC and AV1.
+                    return `#EXT-X-MEDIA:TYPE=VIDEO,GROUP-ID="${quality}",NAME="${quality}",AUTOSELECT=YES,DEFAULT=${i ? "NO" : "YES"}\n#EXT-X-STREAM-INF:BANDWIDTH=${[8500000, 6000000, 3500000, 1500000, 750000, 300000][i]},VIDEO="${quality}"${resolution}\n${url}\n`;
+                } catch { return ""; }
+            }));
+            const variants = results.join("");
+            return variants ? `#EXTM3U\n${variants}` : null;
+        }
+        return async function(input, init) {
+            const url = typeof input === "string" ? input : input.url || String(input);
+            const response = await originalFetch(input, init);
+            const vod = url.match(/^https:\/\/usher\.ttvnw\.net\/(?:api\/v2\/)?vod\/(\d+)\.m3u8(?:\?|$)/);
+            if (vod && [401, 403].includes(response.status)) {
+                try {
+                    const playlist = await unlock(vod[1], init?.signal || input?.signal);
+                    if (playlist) return new Response(playlist, { headers: { "Content-Type": "application/vnd.apple.mpegurl" } });
+                } catch { /* Keep Twitch's original error on an unavailable recording. */ }
+            }
+            return response;
+        };
+    }
+
     function hookWorkerFetch() {
         console.log('hookWorkerFetch (vaft)');
-        const realFetch = fetch;
-        fetch = async function(url, options) {
-            if (typeof url === 'string') {
-                if (AdSegmentCache.has(url)) {
-                    return new Promise(function(resolve, reject) {
-                        const send = function() {
-                            return realFetch('data:video/mp4;base64,AAAAKGZ0eXBtcDQyAAAAAWlzb21tcDQyZGFzaGF2YzFpc282aGxzZgAABEltb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAYagAAAAAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAABqHRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAURtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAALuAAAAAAFXEAAAAAAAtaGRscgAAAAAAAAAAc291bgAAAAAAAAAAAAAAAFNvdW5kSGFuZGxlcgAAAADvbWluZgAAABBzbWhkAAAAAAAAAAAAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAACzc3RibAAAAGdzdHNkAAAAAAAAAAEAAABXbXA0YQAAAAAAAAABAAAAAAAAAAAAAgAQAAAAALuAAAAAAAAzZXNkcwAAAAADgICAIgABAASAgIAUQBUAAAAAAAAAAAAAAAWAgIACEZAGgICAAQIAAAAQc3R0cwAAAAAAAAAAAAAAEHN0c2MAAAAAAAAAAAAAABRzdHN6AAAAAAAAAAAAAAAAAAAAEHN0Y28AAAAAAAAAAAAAAeV0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAoAAAAFoAAAAAAGBbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAA9CQAAAAABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABLG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAOxzdGJsAAAAoHN0c2QAAAAAAAAAAQAAAJBhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAoABaABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAAOmF2Y0MBTUAe/+EAI2dNQB6WUoFAX/LgLUBAQFAAAD6AAA6mDgAAHoQAA9CW7y4KAQAEaOuPIAAAABBzdHRzAAAAAAAAAAAAAAAQc3RzYwAAAAAAAAAAAAAAFHN0c3oAAAAAAAAAAAAAAAAAAAAQc3RjbwAAAAAAAAAAAAAASG12ZXgAAAAgdHJleAAAAAAAAAABAAAAAQAAAC4AAAAAAoAAAAAAACB0cmV4AAAAAAAAAAIAAAABAACCNQAAAAACQAAA', options).then(function(response) {
-                                resolve(response);
-                            })['catch'](function(err) {
-                                reject(err);
-                            });
-                        };
-                        send();
-                    });
+        const realFetch = createVodFetch(fetch);
+        fetch = async function(input, options) {
+            if (typeof input === 'string') input = input.trimEnd();
+            let url = input instanceof Request ? input.url : String(input);
+            if (AdSegmentCache.has(url)) return realFetch('data:video/mp4;base64,AAAAKGZ0eXBtcDQyAAAAAWlzb21tcDQyZGFzaGF2YzFpc282aGxzZgAABEltb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAYagAAAAAAABAAABAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADAAABqHRyYWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAURtZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAALuAAAAAAFXEAAAAAAAtaGRscgAAAAAAAAAAc291bgAAAAAAAAAAAAAAAFNvdW5kSGFuZGxlcgAAAADvbWluZgAAABBzbWhkAAAAAAAAAAAAAAAkZGluZgAAABxkcmVmAAAAAAAAAAEAAAAMdXJsIAAAAAEAAACzc3RibAAAAGdzdHNkAAAAAAAAAAEAAABXbXA0YQAAAAAAAAABAAAAAAAAAAAAAgAQAAAAALuAAAAAAAAzZXNkcwAAAAADgICAIgABAASAgIAUQBUAAAAAAAAAAAAAAAWAgIACEZAGgICAAQIAAAAQc3R0cwAAAAAAAAAAAAAAEHN0c2MAAAAAAAAAAAAAABRzdHN6AAAAAAAAAAAAAAAAAAAAEHN0Y28AAAAAAAAAAAAAAeV0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAoAAAAFoAAAAAAGBbWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAA9CQAAAAABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABLG1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAAOxzdGJsAAAAoHN0c2QAAAAAAAAAAQAAAJBhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAoABaABIAAAASAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAGP//AAAAOmF2Y0MBTUAe/+EAI2dNQB6WUoFAX/LgLUBAQFAAAD6AAA6mDgAAHoQAA9CW7y4KAQAEaOuPIAAAABBzdHRzAAAAAAAAAAAAAAAQc3RzYwAAAAAAAAAAAAAAFHN0c3oAAAAAAAAAAAAAAAAAAAAQc3RjbwAAAAAAAAAAAAAASG12ZXgAAAAgdHJleAAAAAAAAAABAAAAAQAAAC4AAAAAAoAAAAAAACB0cmV4AAAAAAAAAAIAAAABAACCNQAAAAACQAAA', options);
+            if (url.includes('/channel/hls/') && !url.includes('picture-by-picture')) {
+                V2API = url.includes('/api/v2/');
+                const parsed = new URL(url);
+                const channelName = parsed.pathname.match(/([^\/]+)\.m3u8$/)?.[1];
+                if (!channelName) return realFetch(input, options);
+                if (ForceAccessTokenPlayerType) {
+                    parsed.searchParams.delete('parent_domains');
+                    url = parsed.href;
+                    input = input instanceof Request ? new Request(url, input) : url;
                 }
-                url = url.trimEnd();
-                if (url.endsWith('m3u8')) {
-                    return new Promise(function(resolve, reject) {
-                        const processAfter = async function(response) {
-                            if (response.status === 200) {
-                                resolve(new Response(await processM3U8(url, await response.text(), realFetch)));
-                            } else {
-                                resolve(response);
+                const response = await realFetch(input, options);
+                if (response.status !== 200) return response;
+                const encodingsM3u8 = await response.text();
+                const serverTime = getServerTimeFromM3u8(encodingsM3u8);
+                let streamInfo = StreamInfos[channelName];
+                const cachedUrl = streamInfo?.EncodingsM3U8?.match(/^https:.*\.m3u8(?:\?[^\r\n]*)?$/m)?.[0];
+                if (streamInfo?.EncodingsM3U8 && (!cachedUrl || (await realFetch(cachedUrl)).status !== 200)) {
+                    // The cached encodings are dead (the stream probably restarted)
+                    streamInfo = null;
+                }
+                if (streamInfo == null || streamInfo.EncodingsM3U8 == null) {
+                    StreamInfos[channelName] = streamInfo = {
+                        ChannelName: channelName,
+                        IsShowingAd: false,
+                        LastPlayerReload: 0,
+                        EncodingsM3U8: encodingsM3u8,
+                        ModifiedM3U8: null,
+                        IsUsingModifiedM3U8: false,
+                        UsherParams: (new URL(url)).search,
+                        RequestedAds: new Set(),
+                        Urls: [],// xxx.m3u8 -> { Resolution: "284x160", FrameRate: 30.0 }
+                        ResolutionList: [],
+                        BackupEncodingsM3U8Cache: [],
+                        ActiveBackupPlayerType: null,
+                        IsMidroll: false,
+                        IsStrippingAdSegments: false,
+                        NumStrippedAdSegments: 0
+                    };
+                    const lines = encodingsM3u8.replaceAll('\r', '').split('\n');
+                    for (let i = 0; i < lines.length - 1; i++) {
+                        if (lines[i].startsWith('#EXT-X-STREAM-INF') && lines[i + 1].includes('.m3u8')) {
+                            const attributes = parseAttributes(lines[i]);
+                            const resolution = attributes['RESOLUTION'];
+                            if (resolution) {
+                                const resolutionInfo = {
+                                    Resolution: resolution,
+                                    FrameRate: attributes['FRAME-RATE'],
+                                    Codecs: attributes['CODECS'] || '',
+                                    Url: lines[i + 1]
+                                };
+                                streamInfo.Urls[lines[i + 1]] = resolutionInfo;
+                                streamInfo.ResolutionList.push(resolutionInfo);
                             }
-                        };
-                        const send = function() {
-                            return realFetch(url, options).then(function(response) {
-                                processAfter(response);
-                            })['catch'](function(err) {
-                                reject(err);
-                            });
-                        };
-                        send();
-                    });
-                } else if (url.includes('/channel/hls/') && !url.includes('picture-by-picture')) {
-                    V2API = url.includes('/api/v2/');
-                    const channelName = (new URL(url)).pathname.match(/([^\/]+)(?=\.\w+$)/)[0];
-                    if (ForceAccessTokenPlayerType) {
-                        // parent_domains is used to determine if the player is embeded and stripping it gets rid of fake ads
-                        const tempUrl = new URL(url);
-                        tempUrl.searchParams.delete('parent_domains');
-                        url = tempUrl.toString();
+                            StreamInfosByUrl[lines[i + 1]] = streamInfo;
+                        }
                     }
-                    return new Promise(function(resolve, reject) {
-                        const processAfter = async function(response) {
-                            if (response.status == 200) {
-                                const encodingsM3u8 = await response.text();
-                                const serverTime = getServerTimeFromM3u8(encodingsM3u8);
-                                let streamInfo = StreamInfos[channelName];
-                                if (streamInfo != null && streamInfo.EncodingsM3U8 != null && (await realFetch(streamInfo.EncodingsM3U8.match(/^https:.*\.m3u8$/m)[0])).status !== 200) {
-                                    // The cached encodings are dead (the stream probably restarted)
-                                    streamInfo = null;
-                                }
-                                if (streamInfo == null || streamInfo.EncodingsM3U8 == null) {
-                                    StreamInfos[channelName] = streamInfo = {
-                                        ChannelName: channelName,
-                                        IsShowingAd: false,
-                                        LastPlayerReload: 0,
-                                        EncodingsM3U8: encodingsM3u8,
-                                        ModifiedM3U8: null,
-                                        IsUsingModifiedM3U8: false,
-                                        UsherParams: (new URL(url)).search,
-                                        RequestedAds: new Set(),
-                                        Urls: [],// xxx.m3u8 -> { Resolution: "284x160", FrameRate: 30.0 }
-                                        ResolutionList: [],
-                                        BackupEncodingsM3U8Cache: [],
-                                        ActiveBackupPlayerType: null,
-                                        IsMidroll: false,
-                                        IsStrippingAdSegments: false,
-                                        NumStrippedAdSegments: 0
-                                    };
-                                    const lines = encodingsM3u8.replaceAll('\r', '').split('\n');
-                                    for (let i = 0; i < lines.length - 1; i++) {
-                                        if (lines[i].startsWith('#EXT-X-STREAM-INF') && lines[i + 1].includes('.m3u8')) {
-                                            const attributes = parseAttributes(lines[i]);
-                                            const resolution = attributes['RESOLUTION'];
-                                            if (resolution) {
-                                                const resolutionInfo = {
-                                                    Resolution: resolution,
-                                                    FrameRate: attributes['FRAME-RATE'],
-                                                    Codecs: attributes['CODECS'],
-                                                    Url: lines[i + 1]
-                                                };
-                                                streamInfo.Urls[lines[i + 1]] = resolutionInfo;
-                                                streamInfo.ResolutionList.push(resolutionInfo);
-                                            }
-                                            StreamInfosByUrl[lines[i + 1]] = streamInfo;
-                                        }
-                                    }
-                                    const nonHevcResolutionList = streamInfo.ResolutionList.filter((element) => element.Codecs.startsWith('avc') || element.Codecs.startsWith('av0'));
-                                    if (AlwaysReloadPlayerOnAd || (nonHevcResolutionList.length > 0 && streamInfo.ResolutionList.some((element) => element.Codecs.startsWith('hev') || element.Codecs.startsWith('hvc')) && !SkipPlayerReloadOnHevc)) {
-                                        if (nonHevcResolutionList.length > 0) {
-                                            for (let i = 0; i < lines.length - 1; i++) {
-                                                if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
-                                                    const resSettings = parseAttributes(lines[i].substring(lines[i].indexOf(':') + 1));
-                                                    const codecsKey = 'CODECS';
-                                                    if (resSettings[codecsKey].startsWith('hev') || resSettings[codecsKey].startsWith('hvc')) {
-                                                        const oldResolution = resSettings['RESOLUTION'];
-                                                        const [targetWidth, targetHeight] = oldResolution.split('x').map(Number);
-                                                        const newResolutionInfo = nonHevcResolutionList.sort((a, b) => {
-                                                            // TODO: Take into account 'Frame-Rate' when sorting (i.e. 1080p60 vs 1080p30)
-                                                            const [streamWidthA, streamHeightA] = a.Resolution.split('x').map(Number);
-                                                            const [streamWidthB, streamHeightB] = b.Resolution.split('x').map(Number);
-                                                            return Math.abs((streamWidthA * streamHeightA) - (targetWidth * targetHeight)) - Math.abs((streamWidthB * streamHeightB) - (targetWidth * targetHeight));
-                                                        })[0];
-                                                        console.log('ModifiedM3U8 swap ' + resSettings[codecsKey] + ' to ' + newResolutionInfo.Codecs + ' oldRes:' + oldResolution + ' newRes:' + newResolutionInfo.Resolution);
-                                                        lines[i] = lines[i].replace(/CODECS="[^"]+"/, `CODECS="${newResolutionInfo.Codecs}"`);
-                                                        lines[i + 1] = newResolutionInfo.Url + ' '.repeat(i + 1);// The stream doesn't load unless each url line is unique
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        if (nonHevcResolutionList.length > 0 || AlwaysReloadPlayerOnAd) {
-                                            streamInfo.ModifiedM3U8 = lines.join('\n');
-                                        }
+                    const nonHevcResolutionList = streamInfo.ResolutionList.filter((element) => element.Codecs.startsWith('avc') || element.Codecs.startsWith('av0'));
+                    if (AlwaysReloadPlayerOnAd || (nonHevcResolutionList.length > 0 && streamInfo.ResolutionList.some((element) => element.Codecs.startsWith('hev') || element.Codecs.startsWith('hvc')) && !SkipPlayerReloadOnHevc)) {
+                        if (nonHevcResolutionList.length > 0) {
+                            for (let i = 0; i < lines.length - 1; i++) {
+                                if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
+                                    const resSettings = parseAttributes(lines[i].substring(lines[i].indexOf(':') + 1));
+                                    const codecsKey = 'CODECS';
+                                    if (resSettings[codecsKey]?.startsWith('hev') || resSettings[codecsKey]?.startsWith('hvc')) {
+                                        const oldResolution = resSettings['RESOLUTION'];
+                                        const [targetWidth, targetHeight] = oldResolution.split('x').map(Number);
+                                        const newResolutionInfo = nonHevcResolutionList.sort((a, b) => {
+                                            // TODO: Take into account 'Frame-Rate' when sorting (i.e. 1080p60 vs 1080p30)
+                                            const [streamWidthA, streamHeightA] = a.Resolution.split('x').map(Number);
+                                            const [streamWidthB, streamHeightB] = b.Resolution.split('x').map(Number);
+                                            return Math.abs((streamWidthA * streamHeightA) - (targetWidth * targetHeight)) - Math.abs((streamWidthB * streamHeightB) - (targetWidth * targetHeight));
+                                        })[0];
+                                        console.log('ModifiedM3U8 swap ' + resSettings[codecsKey] + ' to ' + newResolutionInfo.Codecs + ' oldRes:' + oldResolution + ' newRes:' + newResolutionInfo.Resolution);
+                                        lines[i] = lines[i].replace(/CODECS="[^"]+"/, `CODECS="${newResolutionInfo.Codecs}"`);
+                                        lines[i + 1] = newResolutionInfo.Url + ' '.repeat(i + 1);// The stream doesn't load unless each url line is unique
                                     }
                                 }
-                                streamInfo.LastPlayerReload = Date.now();
-                                resolve(new Response(replaceServerTimeInM3u8(streamInfo.IsUsingModifiedM3U8 ? streamInfo.ModifiedM3U8 : streamInfo.EncodingsM3U8, serverTime)));
-                            } else {
-                                resolve(response);
                             }
-                        };
-                        const send = function() {
-                            return realFetch(url, options).then(function(response) {
-                                processAfter(response);
-                            })['catch'](function(err) {
-                                reject(err);
-                            });
-                        };
-                        send();
-                    });
+                        }
+                        if (nonHevcResolutionList.length > 0 || AlwaysReloadPlayerOnAd) {
+                            streamInfo.ModifiedM3U8 = lines.join('\n');
+                        }
+                    }
                 }
+                streamInfo.LastPlayerReload = Date.now();
+                return new Response(replaceServerTimeInM3u8(streamInfo.IsUsingModifiedM3U8 ? streamInfo.ModifiedM3U8 : streamInfo.EncodingsM3U8, serverTime));
             }
-            return realFetch.apply(this, arguments);
+            const response = await realFetch(input, options);
+            if (response.status !== 200 || !/\.m3u8(?:\?|$)/.test(url)) return response;
+            let body = await response.text();
+            if (/\/(?:index-dvr|highlight-\d+)\.m3u8(?:\?|$)/.test(url)) body = body.replaceAll('-unmuted', '-muted');
+            return new Response(await processM3U8(url, body, realFetch), {
+                headers: { 'Content-Type': 'application/vnd.apple.mpegurl' },
+            });
         };
     }
     function getServerTimeFromM3u8(encodingsM3u8) {
         if (V2API) {
             const matches = encodingsM3u8.match(/#EXT-X-SESSION-DATA:DATA-ID="SERVER-TIME",VALUE="([^"]+)"/);
-            return matches.length > 1 ? matches[1] : null;
+            return matches?.[1] ?? null;
         }
         const matches = encodingsM3u8.match('SERVER-TIME="([0-9.]+)"');
-        return matches.length > 1 ? matches[1] : null;
+        return matches?.[1] ?? null;
     }
     function replaceServerTimeInM3u8(encodingsM3u8, newServerTime) {
         if (V2API) {
@@ -418,6 +452,7 @@
             line = line
                 .replaceAll(/(X-TV-TWITCH-AD-URL=")(?:[^"]*)(")/g, `$1${newAdUrl}$2`)
                 .replaceAll(/(X-TV-TWITCH-AD-CLICK-TRACKING-URL=")(?:[^"]*)(")/g, `$1${newAdUrl}$2`);
+            lines[i] = line;
             if (i < lines.length - 1 && line.startsWith('#EXTINF') && (!line.includes(',live') || stripAllSegments || AllSegmentsAreAdSegments)) {
                 const segmentUrl = lines[i + 1];
                 if (!AdSegmentCache.has(segmentUrl)) {
@@ -509,7 +544,7 @@
                             // Only request one .ts file per .m3u8 request to avoid making too many requests
                             //console.log('Fetch ad .ts file');
                             streamInfo.RequestedAds.add(lines[i + 1]);
-                            fetch(lines[i + 1]).then((response)=>{response.blob()});
+                            fetch(lines[i + 1]).then(response => response.blob()).catch(() => {});
                             break;
                         }
                     }
@@ -724,7 +759,7 @@
             try {
                 const player = playerForMonitoringBuffering.player;
                 const state = playerForMonitoringBuffering.state;
-                if (!player.core) {
+                if (!player.core || !player.getHTMLVideoElement()?.isConnected) {
                     playerForMonitoringBuffering = null;
                 } else if (state.props?.content?.type === 'live' && !player.isPaused() && !player.getHTMLVideoElement()?.ended && playerBufferState.lastFixTime <= Date.now() - PlayerBufferingMinRepeatDelay && !isActivelyStrippingAds) {
                     const m3u8Url = player.core?.state?.path;
@@ -796,7 +831,7 @@
             });
         }
         playerBufferState.isLive = isLive;
-        setTimeout(monitorPlayerBuffering, PlayerBufferingDelay);
+        setTimeout(monitorPlayerBuffering, playerForMonitoringBuffering ? PlayerBufferingDelay : 3000);
     }
     function updateAdblockBanner(data) {
         const playerRootDiv = document.querySelector('.video-player');
@@ -813,56 +848,42 @@
             }
             if (adBlockDiv != null) {
                 isActivelyStrippingAds = data.isStrippingAdSegments;
-                adBlockDiv.P.textContent = 'Blocking' + (data.isMidroll ? ' midroll' : '') + ' ads' + (data.isStrippingAdSegments ? ' (stripping)' : '');// + (data.numStrippedAdSegments > 0 ? ` (${data.numStrippedAdSegments})` : '');
+                const label = 'Blocking' + (data.isMidroll ? ' midroll' : '') + ' ads' + (data.isStrippingAdSegments ? ' (stripping)' : '');
+                if (adBlockDiv.P.textContent !== label) adBlockDiv.P.textContent = label;
                 adBlockDiv.style.display = data.hasAds && playerBufferState.isLive ? 'block' : 'none';
             }
         }
     }
     function getPlayerAndState() {
-        function findReactNode(root, constraint) {
-            if (root.stateNode && constraint(root.stateNode)) {
-                return root.stateNode;
-            }
-            let node = root.child;
-            while (node) {
-                const result = findReactNode(node, constraint);
-                if (result) {
-                    return result;
-                }
-                node = node.sibling;
-            }
-            return null;
+        const element = document.querySelector('[data-a-target="video-player"], .video-player');
+        const key = Object.keys(element || {}).find(key => key.startsWith('__reactFiber$') || key.startsWith('__reactInternalInstance$'));
+        let root = element?.[key], top = root;
+        while (top?.return) top = top.return;
+        if (top?.stateNode?.current && top.stateNode.current !== top && root?.alternate) root = root.alternate;
+        if (!root) return null;
+        let player = null;
+        for (let node = root; node && !player; node = node.return) {
+            player = node.memoizedProps?.mediaPlayerInstance || node.memoizedProps?.value?.mediaPlayerInstance || node.stateNode?.props?.mediaPlayerInstance;
         }
-        function findReactRootNode() {
-            let reactRootNode = null;
-            const rootNode = document.querySelector('#root');
-            if (rootNode && rootNode._reactRootContainer && rootNode._reactRootContainer._internalRoot && rootNode._reactRootContainer._internalRoot.current) {
-                reactRootNode = rootNode._reactRootContainer._internalRoot.current;
-            }
-            if (reactRootNode == null && rootNode != null) {
-                const containerName = Object.keys(rootNode).find(x => x.startsWith('__reactContainer'));
-                if (containerName != null) {
-                    reactRootNode = rootNode[containerName];
-                }
-            }
-            return reactRootNode;
+        player = player?.playerInstance || player;
+        if (!player) return null;
+        // The source controller is beside the player DOM, not necessarily an ancestor.
+        // Search nearby fibers only; never recursively walk the entire application.
+        const queue = [root], seen = new Set();
+        for (let i = 0; i < queue.length && seen.size < 1000; i++) {
+            const node = queue[i];
+            if (!node || seen.has(node)) continue;
+            seen.add(node);
+            const state = node.stateNode;
+            if (state?.setSrc && state?.setInitialPlaybackSettings) return { player, state };
+            if (node.return) queue.push(node.return);
+            if (node.child) queue.push(node.child);
+            if (node.sibling) queue.push(node.sibling);
         }
-        const reactRootNode = findReactRootNode();
-        if (!reactRootNode) {
-            return null;
-        }
-        let player = findReactNode(reactRootNode, node => node.setPlayerActive && node.props && node.props.mediaPlayerInstance);
-        player = player && player.props && player.props.mediaPlayerInstance ? player.props.mediaPlayerInstance : null;
-        if (player?.playerInstance) {
-            player = player.playerInstance;
-        }
-        const playerState = findReactNode(reactRootNode, node => node.setSrc && node.setInitialPlaybackSettings);
-        return  {
-            player: player,
-            state: playerState
-        };
+        return null;
     }
     function doTwitchPlayerTask(isPausePlay, isReload) {
+        if (document.documentElement?.dataset.twitchKitRewinding) return;
         const playerAndState = getPlayerAndState();
         if (!playerAndState) {
             console.log('Could not find react root');
@@ -878,6 +899,7 @@
             console.log('Could not find player state');
             return;
         }
+        if (playerState.props?.content?.type && playerState.props.content.type !== 'live') return;
         if (player.isPaused() || player.core?.paused) {
             return;
         }
@@ -939,7 +961,7 @@
     }
     async function handleWorkerFetchRequest(fetchRequest) {
         try {
-            const response = await adPage.realFetch(fetchRequest.url, fetchRequest.options);
+            const response = await adPage.realFetch(fetchRequest.url, { ...fetchRequest.options, signal: AbortSignal.timeout(10000) });
             const responseBody = await response.text();
             const responseObject = {
                 id: fetchRequest.id,
@@ -1023,7 +1045,6 @@
             });
         }catch{}
         let hidden = document.__lookupGetter__('hidden');
-        let webkitHidden = document.__lookupGetter__('webkitHidden');
         try {
             Object.defineProperty(document, 'hidden', {
                 get() {
@@ -1036,23 +1057,10 @@
             e.stopPropagation();
             e.stopImmediatePropagation();
         };
-        let wasVideoPlaying = true;
         const visibilityChange = e => {
-            const isChrome = typeof chrome !== 'undefined';
-            const videos = document.getElementsByTagName('video');
-            if (videos.length > 0) {
-                if (hidden.apply(document) === true || (webkitHidden && webkitHidden.apply(document) === true)) {
-                    wasVideoPlaying = !videos[0].paused && !videos[0].ended;
-                } else {
-                    if (!playerBufferState.hasStreamStarted) {
-                        //console.log('Tab focused. Stream should be active');
-                        playerBufferState.hasStreamStarted = true;
-                    }
-                    if (isChrome && wasVideoPlaying && !videos[0].ended && videos[0].paused && videos[0].muted) {
-                        videos[0].play();
-                    }
-                }
-            }
+            if (!hidden.call(document)) playerBufferState.hasStreamStarted = true;
+            // Playback intent belongs to the Kit; a stale tab-hide snapshot
+            // must not override a later manual pause in the PiP window.
             block(e);
         };
         document.addEventListener('visibilitychange', visibilityChange, true);
@@ -1139,9 +1147,10 @@
 (() => {
     "use strict";
 
-    const VERSION = "2026.09.19.1";
+    const VERSION = "2026.10.28.1";
 
     const DEFAULTS = Object.freeze({
+        rewind: true,
         maxQuality: true,
         autoClaimPoints: true,
         autoBackToLive: true,
@@ -1165,6 +1174,7 @@
     });
 
     const TOGGLES = Object.freeze([
+        ["rewind", "Live rewind"],
         ["maxQuality", "Max quality"],
         ["autoClaimPoints", "Claim points"],
         ["autoBackToLive", "Back to live"],
@@ -1219,9 +1229,10 @@
         host === "player.twitch.tv" ||
         host === "embed.twitch.tv" ||
         path.startsWith("/embed/");
-    if (isFrame && !isEmbed) return;
+    if (isChatEmbed || (isFrame && !isEmbed)) return;
 
-    const isDocumentHidden = document.__lookupGetter__("hidden").bind(document);
+    // VAFT overrides document.hidden; use the browser's actual visibility state.
+    const isDocumentHidden = Object.getOwnPropertyDescriptor(Document.prototype, "hidden").get.bind(document);
 
     const pageGlobal =
         typeof unsafeWindow === "object" && unsafeWindow
@@ -1239,7 +1250,7 @@
     }
 
     const markRuntime = () => {
-        if (document.documentElement)
+        if (document.documentElement && document.documentElement.dataset.twitchStabilityKit !== VERSION)
             document.documentElement.dataset.twitchStabilityKit = VERSION;
     };
     markRuntime();
@@ -1311,6 +1322,7 @@
         const style = document.createElement("style");
         style.id = "twitch-kit-runtime-css";
         style.textContent = `
+
       .player-controls__right-control-group div:has(> #twitch-kit-pip-control) {
         display: flex !important;
         flex: 0 0 auto !important;
@@ -1328,7 +1340,7 @@
         transform: none !important;
       }
     `;
-        (document.head || document.documentElement).appendChild(style);
+        (document.head || document.documentElement)?.appendChild(style);
     }
 
     function injectCleanerCss() {
@@ -1405,45 +1417,25 @@
     const isAutoQuality = (q) =>
         qualityParts(q).some((part) => part.toLowerCase().includes("auto"));
 
-    function findPlayer() {
+    function getPlayerFiber() {
         const root = getPlayerRoot();
-        const fiberKey = Object.keys(root || {}).find(
-            (key) =>
-                key.startsWith("__reactFiber$") ||
-                key.startsWith("__reactInternalInstance$") ||
-                key.startsWith("__reactContainer$"),
-        );
-        const stack = [root?.[fiberKey]];
-        const seen = new Set();
+        const key = Object.keys(root || {}).find(key =>
+            key.startsWith("__reactFiber$") || key.startsWith("__reactInternalInstance$"));
+        let node = root?.[key];
+        let top = node;
+        while (top?.return) top = top.return;
+        if (top?.stateNode?.current && top.stateNode.current !== top && node?.alternate) node = node.alternate;
+        return node;
+    }
 
-        while (stack.length && seen.size < 1000) {
-            const node = stack.pop();
-            if (!node || seen.has(node)) continue;
-            seen.add(node);
-
-            const values = [
-                node.memoizedProps,
-                node.pendingProps,
-                node.stateNode,
-                node.stateNode?.props,
-            ];
-            for (const value of values) {
-                const player =
-                    value?.mediaPlayerInstance ||
-                    value?.playerInstance ||
-                    value?.player ||
-                    value;
-                const direct = [player, player?.core].find(
-                    (candidate) =>
-                        typeof candidate?.getQualities === "function" &&
-                        typeof candidate?.setQuality === "function",
-                );
-                if (direct) return direct;
+    function findPlayer() {
+        for (let node = getPlayerFiber(); node; node = node.return) {
+            for (const value of [node.memoizedProps, node.memoizedProps?.value, node.stateNode, node.stateNode?.props]) {
+                const player = value?.mediaPlayerInstance || value?.playerInstance || value?.player || value;
+                for (const candidate of [player, player?.core]) {
+                    if (typeof candidate?.getQualities === "function" && typeof candidate?.setQuality === "function") return candidate;
+                }
             }
-
-            if (node.return) stack.push(node.return);
-            if (node.child) stack.push(node.child);
-            if (node.sibling) stack.push(node.sibling);
         }
         return null;
     }
@@ -1467,18 +1459,12 @@
             if (!best) return false;
 
             const bestParts = qualityParts(best);
-            if (
-                qualityParts(player.getQuality?.()).some((part) =>
-                    bestParts.includes(part),
-                )
-            )
-                return true;
-
-            player.setAutoQualityMode?.(false);
-            player.setQuality(
-                best.group || best.name || best.quality || best,
-                false,
+            const currentIsBest = qualityParts(player.getQuality?.()).some((part) =>
+                bestParts.includes(part),
             );
+            if (player.isAutoQualityMode?.()) player.setAutoQualityMode(false);
+            if (currentIsBest) return true;
+            player.setQuality(best, false);
             log("quality", qualityLabel(best));
         } catch (err) {
             log("quality error", err);
@@ -1497,6 +1483,8 @@
     }
 
     function recordQualityStall() {
+        const video = getMainVideo();
+        if (!CONFIG.maxQuality || !video || video.seeking || video.paused) return;
         const now = Date.now();
         while (
             qualityStalls.length &&
@@ -1509,6 +1497,7 @@
             qualitySuspendedUntil = now + CONFIG.qualitySuspendMs;
             stopQualityBurst();
             qualityStalls.length = 0;
+            findPlayer()?.setAutoQualityMode?.(true);
             log("quality suspended");
         }
     }
@@ -1542,16 +1531,9 @@
         const now = Date.now();
         if (now - claimPoints.lastClick < CONFIG.claimCooldownMs) return;
 
-        const selectors = [
-            '[data-test-selector="community-points-summary"] .claimable-bonus__icon',
-            ".claimable-bonus__icon",
-        ];
-
-        for (const selector of selectors) {
-            const el = document.querySelector(selector);
-            const button =
-                el?.closest?.("button") ||
-                (el?.tagName === "BUTTON" ? el : null);
+        const icons = document.querySelectorAll(".claimable-bonus__icon");
+        for (const el of icons) {
+            const button = el.closest("button");
             if (button && !button.disabled && isVisible(button)) {
                 claimPoints.lastClick = now;
                 button.click();
@@ -1559,6 +1541,7 @@
                 return;
             }
         }
+        if (icons.length) return;
 
         const buttons = document.querySelectorAll(
             "button[aria-label], button[data-test-selector]",
@@ -1567,10 +1550,9 @@
             const label =
                 `${button.getAttribute("aria-label") || ""} ${button.getAttribute("data-test-selector") || ""}`.toLowerCase();
             if (
-                !button.disabled &&
-                isVisible(button) &&
                 label.includes("claim") &&
-                (label.includes("bonus") || label.includes("point"))
+                (label.includes("bonus") || label.includes("point")) &&
+                !button.disabled && isVisible(button)
             ) {
                 claimPoints.lastClick = now;
                 button.click();
@@ -1580,6 +1562,178 @@
         }
     }
     claimPoints.lastClick = 0;
+
+
+    /*
+     * VOD lookup and CDN fallback adapted from:
+     * https://github.com/Alban1911/TwitchRewind/tree/f06b5ba580387979370f2c777a47d2c67c594086
+     * MIT License
+     *
+     * Copyright (c) 2026 Alban1911
+     *
+     * Permission is hereby granted, free of charge, to any person obtaining a copy
+     * of this software and associated documentation files (the "Software"), to deal
+     * in the Software without restriction, including without limitation the rights
+     * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+     * copies of the Software, and to permit persons to whom the Software is
+     * furnished to do so, subject to the following conditions:
+     *
+     * The above copyright notice and this permission notice shall be included in all
+     * copies or substantial portions of the Software.
+     *
+     * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+     * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+     * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+     * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+     * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+     * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+     * SOFTWARE.
+     */
+    // Supply an accessible recording to Twitch's existing DVR context. Twitch
+    // renders and owns the seekbar, time labels, previews, shortcuts and LIVE.
+    function createRewind() {
+        let session = null;
+
+        function context() {
+            for (let node = getPlayerFiber(); node; node = node.return) {
+                const value = node.memoizedProps?.value;
+                if (typeof value?.setPlayerContent === "function" && "playbackID" in value) return value;
+            }
+            return null;
+        }
+
+        function channelFromUrl() {
+            if (isChatEmbed) return null;
+            if (isEmbed) return new URLSearchParams(location.search).get("channel")?.toLowerCase() || null;
+            return location.pathname.match(/^\/([a-z0-9_]+)\/?$/i)?.[1].toLowerCase() || null;
+        }
+
+        function current(s) {
+            const value = context();
+            return session === s && !s.abort.signal.aborted && channelFromUrl() === s.channel &&
+                value?.setPlayerContent === s.owner && value.content?.channelLogin?.toLowerCase() === s.channel
+                ? value : null;
+        }
+
+        function owns(s, content) {
+            return !!s.installedID && (content?.type === "live"
+                ? content.dvrVideoID === s.installedID
+                : content?.isDVR && content.vodID === s.installedID);
+        }
+
+        function restore(s) {
+            const value = context();
+            if (value?.setPlayerContent === s.owner &&
+                value.content?.channelLogin?.toLowerCase() === s.channel &&
+                s.original && owns(s, value.content)) value.setPlayerContent(s.original);
+            s.original = null;
+            s.installedID = null;
+        }
+
+        function reset() {
+            if (session) {
+                restore(session);
+                session.abort.abort();
+                session = null;
+            }
+            delete document.documentElement.dataset.twitchKitRewinding;
+        }
+
+        async function request(s, url, options = {}) {
+            const response = await pageGlobal.fetch(url, {
+                ...options,
+                signal: AbortSignal.any([s.abort.signal, AbortSignal.timeout(10000)]),
+            });
+            if (!response.ok) throw new Error(`Rewind lookup: ${response.status}`);
+            return response;
+        }
+
+        async function gql(s, query, variables) {
+            const response = await request(s, "https://gql.twitch.tv/gql", {
+                method: "POST",
+                headers: { "Client-ID": "kimne78kx3ncx6brgo4mv6wki5h1ko", "Content-Type": "application/json" },
+                body: JSON.stringify({ query, variables }),
+            });
+            const result = await response.json();
+            if (result.errors?.length || !result.data) throw new Error("Rewind lookup unavailable");
+            return result.data;
+        }
+
+        async function verifyRecording(s, id) {
+            const data = await gql(s, 'query($id:ID!){videoPlaybackAccessToken(id:$id,params:{platform:"web",playerBackend:"mediaplayer",playerType:"site"}){value signature}}', { id });
+            const token = data.videoPlaybackAccessToken;
+            if (!token?.value || !token.signature) throw new Error("Recording unavailable");
+            const params = new URLSearchParams({ nauth: token.value, nauthsig: token.signature, allow_source: "true" });
+            // Only wire recordings Twitch serves directly. No entitlement changes.
+            const response = await request(s, `https://usher.ttvnw.net/vod/${id}.m3u8?${params}`);
+            if (!(await response.text()).startsWith("#EXTM3U")) throw new Error("Invalid recording playlist");
+        }
+
+        function apply(s, value = current(s)) {
+            const content = value?.content;
+            if (!s.vodID || content?.type !== "live" || content.dvrVideoID === s.vodID) return;
+            if (content.dvrVideoID && !owns(s, content)) return;
+            if (!s.original) s.original = content;
+            s.installedID = s.vodID;
+            value.setPlayerContent({ ...content, dvrVideoID: s.vodID });
+        }
+
+        async function check(s) {
+            if (s.checking || Date.now() < s.nextCheck) return;
+            s.checking = true;
+            s.nextCheck = Date.now() + 30000;
+            try {
+                const data = await gql(s, 'query($login:String!){user(login:$login){videos(first:5,sort:TIME,type:ARCHIVE){edges{node{id status}}}}}', { login: s.channel });
+                const value = current(s);
+                if (!value) return;
+                const edges = data.user?.videos?.edges;
+                if (data.user !== null && !Array.isArray(edges)) throw new Error("Incomplete recording lookup");
+                const id = edges?.find(edge => edge.node?.status === "RECORDING")?.node.id;
+                if (!id) {
+                    if (++s.misses >= 2 && value.content.type === "live") {
+                        restore(s);
+                        s.vodID = null;
+                    }
+                    return;
+                }
+                s.misses = 0;
+                if (id !== s.vodID) {
+                    await verifyRecording(s, id);
+                    if (!current(s)) return;
+                    s.vodID = id;
+                }
+                apply(s);
+            } catch (error) {
+                if (!s.abort.signal.aborted) log("native rewind", error.message);
+            } finally { s.checking = false; }
+        }
+
+        function update() {
+            const value = context();
+            const content = value?.content;
+            const route = channelFromUrl();
+            // React can briefly detach the player while keeping its DVR provider.
+            if (!value && session) {
+                if (!CONFIG.rewind || session.channel !== route) session.abort.abort();
+                return;
+            }
+            const channel = CONFIG.rewind && content?.channelLogin?.toLowerCase() === route ? route : null;
+            if (!channel || (session && (session.abort.signal.aborted || session.channel !== channel || session.owner !== value?.setPlayerContent))) {
+                reset();
+            }
+            if (content?.type !== "live" && content?.isDVR) document.documentElement.dataset.twitchKitRewinding = "1";
+            else delete document.documentElement.dataset.twitchKitRewinding;
+            if (!channel) return;
+            // Existing native rewind (including its hidden-bar preference) wins.
+            if (!session && (content.type !== "live" || content.dvrVideoID)) return;
+            if (!session) session = { channel, owner: value.setPlayerContent, abort: new AbortController(), nextCheck: 0, misses: 0 };
+            apply(session, value);
+            check(session);
+        }
+
+        window.addEventListener("pagehide", reset);
+        return { update, get active() { const content = context()?.content; return content?.type !== "live" && !!content?.isDVR; } };
+    }
 
     const backToLivePatterns = [
         /\bback\s+to\s+live\b/,
@@ -1604,16 +1758,17 @@
     ];
 
     function clickBackToLive() {
-        if (!CONFIG.autoBackToLive) return;
+        if (!CONFIG.autoBackToLive || rewind.active) return;
         const now = Date.now();
         if (now - clickBackToLive.lastClick < CONFIG.liveCooldownMs) return;
 
         const root = getPlayerRoot();
         if (!root) return;
+        if (root.querySelector('[data-a-target="player-seekbar"]')) return;
 
         const buttons = root.querySelectorAll("button");
         for (const button of buttons) {
-            if (!isVisible(button) || button.disabled) continue;
+            if (button.disabled) continue;
             const label =
                 `${button.textContent || ""} ${button.getAttribute("aria-label") || ""} ${button.dataset?.aTarget || ""}`.toLowerCase();
             if (
@@ -1625,6 +1780,7 @@
                 button.dataset?.aTarget?.includes("back-to-live") ||
                 backToLivePatterns.some((pattern) => pattern.test(label))
             ) {
+                if (!isVisible(button)) continue;
                 clickBackToLive.lastClick = now;
                 button.click();
                 burstQuality(4000);
@@ -1677,9 +1833,9 @@
             .querySelectorAll('[class*="carousel"] video')
             .forEach((video) => {
                 try {
-                    video.muted = true;
-                    video.volume = 0;
-                    video.pause();
+                    if (!video.muted) video.muted = true;
+                    if (video.volume) video.volume = 0;
+                    if (!video.paused) video.pause();
                 } catch {}
                 const box = video.closest('[class*="carousel"]');
                 if (box && !box.hidden) {
@@ -1688,7 +1844,7 @@
                 }
             });
 
-        document.querySelectorAll("button").forEach((button) => {
+        document.querySelectorAll("button:not([hidden])").forEach((button) => {
             const label = (button.textContent || "")
                 .replace(/\s+/g, " ")
                 .trim();
@@ -1703,8 +1859,8 @@
     let wasPlaying = false;
     let lastPlayerInputAt = 0;
     let lastManualPauseAt = 0;
-    let inPictureInPicture = false;
     let pipKeepaliveTimer = 0;
+    let playbackRecoveryTimer = 0;
     let pipButton = null;
     let pipMountTemplate = null;
     let pipMountTemplateAt = 0;
@@ -1838,7 +1994,6 @@
             return;
         }
         if (!playerControlsHavePiPRoom(settingsButton)) {
-            schedulePiPButtonMount(250);
             return;
         }
 
@@ -1884,7 +2039,7 @@
     function isPiPVideo(video = getMainVideo()) {
         return (
             !!video &&
-            (inPictureInPicture || nativePiPActive(getNativeMainVideo()))
+            nativePiPActive(getNativeMainVideo())
         );
     }
 
@@ -1915,8 +2070,8 @@
             stopPiPKeepalive();
             return;
         }
-        runPiPKeepalive();
         if (!pipKeepaliveTimer) {
+            runPiPKeepalive();
             pipKeepaliveTimer = window.setInterval(() => {
                 if (shouldPiPKeepalive()) runPiPKeepalive();
                 else stopPiPKeepalive();
@@ -1925,8 +2080,11 @@
     }
 
     function recoverPlaybackSoon(delayMs = 1000) {
-        if (!CONFIG.keepPlaying || !wasPlaying || !isPiPVideo()) return;
-        window.setTimeout(() => {
+        const video = getMainVideo();
+        if (!CONFIG.keepPlaying || !wasPlaying || !isPiPVideo(video) || playbackRecoveryTimer) return;
+        playbackRecoveryTimer = window.setTimeout(() => {
+            playbackRecoveryTimer = 0;
+            if (!CONFIG.keepPlaying || !wasPlaying || video !== getMainVideo() || !isPiPVideo(video)) return;
             resumeVideo();
             if (CONFIG.maxQuality) forceBestQuality();
         }, delayMs);
@@ -1935,13 +2093,16 @@
     function bindVideo(video) {
         if (!video || boundVideos.has(video)) return;
         boundVideos.add(video);
+        wasPlaying = !video.paused && !video.ended;
         video.addEventListener(
             "play",
             () => {
                 if (!isManagedVideo(video)) return;
                 wasPlaying = true;
+                rewind.update();
                 burstQuality(6000);
                 updatePiPKeepalive();
+                requestWakeLock();
             },
             true,
         );
@@ -1950,8 +2111,10 @@
             () => {
                 if (!isManagedVideo(video)) return;
                 wasPlaying = true;
+                rewind.update();
                 burstQuality(6000);
                 updatePiPKeepalive();
+                requestWakeLock();
             },
             true,
         );
@@ -1959,9 +2122,12 @@
             "pause",
             () => {
                 if (!isManagedVideo(video)) return;
+                releaseWakeLock();
                 const now = Date.now();
                 if (
                     !isDocumentHidden() ||
+                    // PiP's pause button is outside this document's input events.
+                    isPiPVideo(video) ||
                     now - lastPlayerInputAt < CONFIG.manualPauseWindowMs
                 ) {
                     wasPlaying = false;
@@ -1976,7 +2142,6 @@
             "enterpictureinpicture",
             () => {
                 if (!isManagedVideo(video)) return;
-                inPictureInPicture = true;
                 wasPlaying = !video.paused && !video.ended;
                 burstQuality(15000);
                 updatePiPKeepalive();
@@ -1987,7 +2152,6 @@
         video.addEventListener(
             "leavepictureinpicture",
             () => {
-                inPictureInPicture = false;
                 stopPiPKeepalive();
                 updatePiPButton();
             },
@@ -1996,7 +2160,6 @@
         video.addEventListener(
             "webkitpresentationmodechanged",
             () => {
-                inPictureInPicture = nativePiPActive(getNativeMainVideo());
                 updatePiPKeepalive();
                 updatePiPButton();
             },
@@ -2006,7 +2169,8 @@
             video.addEventListener(
                 name,
                 () => {
-                    if (isManagedVideo(video)) recordQualityStall();
+                    if (!isManagedVideo(video)) return;
+                    recordQualityStall();
                     recoverPlaybackSoon(1500);
                 },
                 true,
@@ -2014,13 +2178,13 @@
         }
         video.addEventListener(
             "suspend",
-            () => recoverPlaybackSoon(1500),
+            () => { if (isManagedVideo(video)) recoverPlaybackSoon(1500); },
             true,
         );
         video.addEventListener(
             "loadedmetadata",
             () => {
-                if (isManagedVideo(video)) burstQuality(8000);
+                if (isManagedVideo(video)) { rewind.update(); burstQuality(8000); }
             },
             true,
         );
@@ -2036,7 +2200,6 @@
     function bindVideos() {
         bindVideo(getMainVideo());
         updatePiPKeepalive();
-        updatePiPButton();
     }
 
     function resumeVideo() {
@@ -2044,7 +2207,7 @@
         const video = getMainVideo();
         try {
             if (
-                video?.paused &&
+                video?.paused && boundVideos.has(video) &&
                 !video.ended &&
                 (video.readyState >= 2 || isPiPVideo(video))
             ) {
@@ -2164,15 +2327,19 @@
     function hasNonChatMutation(mutations) {
         return mutations.some((mutation) => {
             const target = mutationTarget(mutation);
-            return (
-                !target ||
-                typeof target.closest !== "function" ||
-                !target.closest(CHAT_MUTATION_SELECTOR)
-            );
+            if (!target?.closest) return true;
+            if (target.closest(CHAT_MUTATION_SELECTOR) &&
+                !target.closest('[data-test-selector="community-points-summary"]')) return false;
+            // Time labels and ad-status text do not require rescanning the page.
+            return [...mutation.addedNodes, ...mutation.removedNodes].some(node => node.nodeType === 1) ||
+                !!target.closest("button");
         });
     }
 
+    const rewind = createRewind();
+
     function runDomWork() {
+        rewind.update();
         markRuntime();
         injectRuntimeCss();
         injectCleanerCss();
@@ -2224,6 +2391,7 @@
             if (original?.__twitchKitPatched) continue;
             const wrapped = function wrappedHistoryState(...args) {
                 const result = original.apply(this, args);
+                rewind.update();
                 window.setTimeout(onPageActivity, 0);
                 return result;
             };
@@ -2232,7 +2400,7 @@
             });
             pageHistory[name] = wrapped;
         }
-        window.addEventListener("popstate", onPageActivity, true);
+        window.addEventListener("popstate", () => { rewind.update(); onPageActivity(); }, true);
     }
 
     injectRuntimeCss();
@@ -2249,6 +2417,11 @@
         },
         true,
     );
+
+    document.addEventListener("pointerover", (event) => {
+        if (event.target?.closest?.(PLAYER_ROOT_SELECTOR) &&
+            !event.relatedTarget?.closest?.(PLAYER_ROOT_SELECTOR)) scheduleDomWork();
+    }, true);
 
     document.addEventListener(
         "keydown",
@@ -2272,7 +2445,7 @@
         true,
     );
 
-    document.addEventListener(
+    window.addEventListener(
         "visibilitychange",
         () => {
             if (isDocumentHidden()) {
@@ -2293,6 +2466,7 @@
     );
 
     window.addEventListener("focus", onPageActivity, true);
+    window.addEventListener("resize", scheduleDomWork, true);
     window.addEventListener("pageshow", onPageActivity, true);
     window.addEventListener("pagehide", releaseWakeLock, true);
     window.addEventListener("load", onPageActivity, { once: true });
