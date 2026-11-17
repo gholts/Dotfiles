@@ -18,7 +18,7 @@ alfred_workflow_bundleid= FORCE_CONFIGURE=1 "$stage/configure-keywords" "$build_
 archive=$build_dir/browser-selector.alfredworkflow
 (
   cd "$stage"
-  /usr/bin/zip -q -r "$archive" . -x '*.DS_Store' -x '*.alfredworkflow'
+  /usr/bin/zip -q -r "$archive" . -x '.*' '*/.*' 'build' 'prefs.plist' '*.alfredworkflow'
 )
 /bin/mv -f "$archive" "$output"
 
