@@ -11,7 +11,9 @@ if [[ ! $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
 fi
 work=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/hide-my-email.XXXXXX")
 trap '/bin/rm -rf -- "$work"' EXIT
-/usr/bin/git -c advice.detachedHead=false clone -q --depth 1 --branch "v$version" "$repo" "$work/NSHideMyEmail"
+/usr/bin/git init -q "$work/NSHideMyEmail"
+/usr/bin/git -C "$work/NSHideMyEmail" fetch -q --depth 1 "$repo" "refs/tags/v$version"
+/usr/bin/git -C "$work/NSHideMyEmail" -c advice.detachedHead=false checkout -q FETCH_HEAD
 /usr/bin/make -s -C "$work/NSHideMyEmail" hme >&2
 /bin/mkdir "$work/stage"
 /bin/cp "$work/NSHideMyEmail/hme" "$workflow_dir/"{info.plist,README.md,icon.png} "$work/stage/"
