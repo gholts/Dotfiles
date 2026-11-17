@@ -1,5 +1,6 @@
 -- AlfredGhostty Script - Ghostty AppleScript API rewrite
 -- Source workflow: https://github.com/zeitlings/alfred-ghostty-script
+-- Copyright (c) 2025, Patrick Sy. BSD 3-Clause License. See LICENSE.
 -- Ghostty API: https://ghostty.org/docs/features/applescript
 
 -- tab : t | window: n | split: d | quick terminal: qt
