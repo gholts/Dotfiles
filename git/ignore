@@ -31,3 +31,5 @@ bun-debug.log*
 
 # blogs of sample
 .obsidian/
+
+**/.claude/settings.local.json
