@@ -1,24 +1,21 @@
 // ==UserScript==
 // @name         YouTube Embed New Tab Kit
 // @namespace    gholts.youtube-embed.new-tab
-// @version      2026.11.17
-// @description  Open embedded YouTube players in a new tab instead of playing inline (Alt+click plays inline).
+// @version      2026.11.17.2
+// @description  Open embedded YouTube videos in a new tab instead of playing inline (Alt+click plays inline).
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
 // @homepageURL  https://github.com/Gholts/Dotfiles/tree/main/bin/userscript
 // @updateURL    https://raw.githubusercontent.com/Gholts/Dotfiles/main/bin/userscript/any-youtube-embed-new-tab.user.js
 // @downloadURL  https://raw.githubusercontent.com/Gholts/Dotfiles/main/bin/userscript/any-youtube-embed-new-tab.user.js
 // @icon         https://www.youtube.com/s/desktop/favicon_144x144.png
-// @match        *://*.youtube.com/embed*
-// @match        *://*.youtube-nocookie.com/embed*
+// @match        *://*/*
 // @run-at       document-start
 // @grant        GM_openInTab
 // ==/UserScript==
 
 (() => {
     "use strict";
-
-    if (window.self === window.top) return;
 
     function watchUrl(embedHref, currentTime = 0) {
         const embed = new URL(embedHref);
@@ -34,6 +31,8 @@
         return url.href;
     }
 
+    const open = (url) => url && GM_openInTab(url, { active: true, insert: true });
+
     const swallow = (event) => {
         if (event.altKey) return false;
         event.preventDefault();
@@ -41,17 +40,32 @@
         return true;
     };
 
-    for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup", "touchstart", "touchend", "dblclick"]) {
-        window.addEventListener(type, swallow, true);
-    }
-    for (const type of ["click", "auxclick"]) {
-        window.addEventListener(type, (event) => {
-            if (event.button > 1 || !swallow(event)) return;
+    const onClick = (handler) => {
+        for (const type of ["click", "auxclick"]) {
+            window.addEventListener(type, (event) => {
+                if (event.button <= 1) handler(event);
+            }, true);
+        }
+    };
+
+    if (/^(?:[\w-]+\.)?youtube(?:-nocookie)?\.com$/.test(location.hostname) && location.pathname.startsWith("/embed")) {
+        if (window.self === window.top) return;
+        for (const type of ["pointerdown", "pointerup", "mousedown", "mouseup", "touchstart", "touchend", "dblclick"]) {
+            window.addEventListener(type, swallow, true);
+        }
+        onClick((event) => {
+            if (!swallow(event)) return;
             const video = document.querySelector("video");
-            const url = watchUrl(location.href, video?.currentTime);
-            if (!url) return;
             video?.pause();
-            GM_openInTab(url, { active: true, insert: true });
-        }, true);
+            open(watchUrl(location.href, video?.currentTime));
+        });
+        return;
     }
+
+    onClick((event) => {
+        const facade = event.composedPath().find((el) => el.localName === "lite-youtube");
+        const id = facade?.getAttribute("videoid");
+        if (!id || facade.querySelector("iframe") || !swallow(event)) return;
+        open(watchUrl(`https://www.youtube.com/embed/${id}?${facade.getAttribute("params") || ""}`));
+    });
 })();
