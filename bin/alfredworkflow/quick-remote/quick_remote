@@ -38,6 +38,8 @@ my $scanning = 0;
 
 if ($mode eq 'remote' || $mode eq 'ssh') {
     my ($hosts, $config_exists) = read_ssh_hosts($ssh_config, $home);
+    my @ssh_options = $ssh_config eq File::Spec->catfile($home, '.ssh', 'config')
+        ? () : ('-F', File::Spec->rel2abs($ssh_config));
 
     for my $host (@{$hosts}) {
         my $alias = $host->{alias};
@@ -56,7 +58,7 @@ if ($mode eq 'remote' || $mode eq 'ssh') {
             title     => $alias,
             subtitle  => 'SSH  •  ' . $destination,
             match     => $search,
-            arg       => shell_quote($alias),
+            arg       => join(' ', map { shell_quote($_) } (@ssh_options, '--', $alias)),
             variables => { remote_type => 'ssh' },
             mods      => {
                 cmd => {
@@ -145,7 +147,8 @@ if ($mode eq 'remote' || $mode eq 'vnc') {
         my $updated = ($cache->{updated} || 0) + 0;
         my $stale = time - $updated > 10;
         if ($stale || -d $lock_dir) {
-            start_scanner($cache_dir) if $stale && !-d $lock_dir;
+            start_scanner($cache_dir)
+                if !-d $lock_dir || time - ((stat $lock_dir)[9] || 0) > 20;
             $scanning = 1;
             push @items, status_item(
                 'Refreshing Bonjour VNC devices…',

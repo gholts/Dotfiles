@@ -21,11 +21,12 @@ if (-d $lock_dir) {
     rmdir $lock_dir if $age > 20;
 }
 exit 0 unless mkdir $lock_dir;
+my $lock_owner = $$;
 
-END { rmdir $lock_dir if defined $lock_dir && -d $lock_dir }
+END { rmdir $lock_dir if defined $lock_owner && $lock_owner == $$ }
 
 my $old = read_json($cache_file) || { devices => [] };
-my $dns_sd = $ENV{QUICK_REMOTE_DNS_SD} || '/usr/bin/dns-sd';
+my $dns_sd = '/usr/bin/dns-sd';
 if (!-x $dns_sd) {
     write_cache({
         updated => int(time),
