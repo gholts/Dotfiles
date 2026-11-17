@@ -1,0 +1,27 @@
+name: Alfred Workflows
+
+on:
+  push:
+    branches: [main]
+    paths: [bin/alfredworkflow/**]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: alfred-workflows
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: bin/alfredworkflow/build dist
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes=$(for p in bin/alfredworkflow/*/info.plist; do
+            echo "- $(plutil -extract name raw "$p") $(plutil -extract version raw "$p")"
+          done)
+          gh release create "alfredworkflow-$(date -u +%Y%m%d)-${GITHUB_SHA::7}" dist/*.alfredworkflow \
+            --target "$GITHUB_SHA" --title "Alfred Workflows $(date -u +%Y-%m-%d)" --notes "$notes"

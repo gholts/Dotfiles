@@ -1,0 +1,29 @@
+#!/bin/zsh
+set -euo pipefail
+
+root=${0:A:h}
+dist=${1:-${TMPDIR:-/tmp}/alfredworkflow}
+dist=${dist:A}
+work=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/alfredworkflow.XXXXXX")
+trap '/bin/rm -rf -- "$work"' EXIT
+/bin/mkdir -p "$dist"
+
+for plist in "$root"/*/info.plist; do
+  dir=${plist:h}
+  output=$dist/${dir:t}.alfredworkflow
+  /bin/rm -f "$output"
+  if [[ -x $dir/build ]]; then
+    "$dir/build" "$output" >/dev/null
+  else
+    stage=$work/${dir:t}
+    /usr/bin/ditto "$dir" "$stage"
+    for source in "$stage"/*.m(N); do
+      /usr/bin/clang -fobjc-arc -fmodules -O2 -Wall -Wextra -Wno-unused-parameter -Werror \
+        -arch arm64 -arch x86_64 -mmacosx-version-min=12.0 "$source" -o "${source:r}"
+      /usr/bin/codesign --force --sign - "${source:r}" 2>/dev/null
+      /bin/rm "$source"
+    done
+    (cd "$stage" && /usr/bin/zip -q -r "$output" . -x '.*' '*/.*' 'prefs.plist' '__pycache__/*' '*.alfredworkflow')
+  fi
+  print -r -- "$output"
+done
