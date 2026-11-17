@@ -8,7 +8,7 @@
 // @homepageURL  https://github.com/Gholts/Dotfiles/tree/main/bin/userscript
 // @updateURL    https://raw.githubusercontent.com/Gholts/Dotfiles/main/bin/userscript/any-youtube-embed-new-tab.user.js
 // @downloadURL  https://raw.githubusercontent.com/Gholts/Dotfiles/main/bin/userscript/any-youtube-embed-new-tab.user.js
-// @icon         https://www.youtube.com/s/desktop/favicon_144x144.png
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=youtube.com
 // @match        *://*/*
 // @run-at       document-start
 // @grant        GM_openInTab
