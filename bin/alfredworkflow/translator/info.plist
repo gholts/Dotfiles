@@ -6,6 +6,42 @@
 	<string>com.gholts.translator</string>
 	<key>connections</key>
 	<dict>
+		<key>5D8A3F21-C6B9-4E07-A1F3-8B2D7E9C0F56</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>1B60F299-C363-485E-B872-2DC093F1B2C1</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>C7D4E2A9-3B6F-4F1C-9A85-2E0D7B4C6F13</string>
+				<key>modifiers</key>
+				<integer>1048576</integer>
+				<key>modifiersubtext</key>
+				<string>Paste to frontmost app</string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>6B1E0C55-1D7A-4C0E-9B53-2E7A3C1F8D21</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>5D8A3F21-C6B9-4E07-A1F3-8B2D7E9C0F56</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
 		<key>8C2F1D16-2D5E-4A68-90CE-85D50F639B91</key>
 		<array>
 			<dict>
@@ -16,27 +52,37 @@
 				<key>modifiersubtext</key>
 				<string></string>
 				<key>vitoclose</key>
-				<integer>0</integer>
+				<false/>
+			</dict>
+			<dict>
+				<key>destinationuid</key>
+				<string>C7D4E2A9-3B6F-4F1C-9A85-2E0D7B4C6F13</string>
+				<key>modifiers</key>
+				<integer>1048576</integer>
+				<key>modifiersubtext</key>
+				<string>Paste to frontmost app</string>
+				<key>vitoclose</key>
+				<false/>
 			</dict>
 		</array>
-		<key>9D9C9FE2-821B-4978-9646-CAAC1E81D29C</key>
+		<key>A4E9D2B7-5C31-4F8A-8E62-7D0B9C4E1A35</key>
 		<array>
 			<dict>
 				<key>destinationuid</key>
-				<string>1B60F299-C363-485E-B872-2DC093F1B2C1</string>
+				<string>5D8A3F21-C6B9-4E07-A1F3-8B2D7E9C0F56</string>
 				<key>modifiers</key>
 				<integer>0</integer>
 				<key>modifiersubtext</key>
 				<string></string>
 				<key>vitoclose</key>
-				<integer>0</integer>
+				<false/>
 			</dict>
 		</array>
 	</dict>
 	<key>createdby</key>
 	<string>Gholts</string>
 	<key>description</key>
-	<string>Translate detected input to en-US or zh-TW with DeepL, OpenAI, or Apple Shortcuts.</string>
+	<string>Translate text with the built-in macOS translation service.</string>
 	<key>disabled</key>
 	<false/>
 	<key>name</key>
@@ -51,7 +97,7 @@
 				<key>alfredfiltersresultsmatchmode</key>
 				<integer>0</integer>
 				<key>argumenttreatemptyqueryasnil</key>
-				<true/>
+				<false/>
 				<key>argumenttrimmode</key>
 				<integer>0</integer>
 				<key>argumenttype</key>
@@ -59,31 +105,29 @@
 				<key>escaping</key>
 				<integer>0</integer>
 				<key>keyword</key>
-				<string>en</string>
+				<string>en||zhtw</string>
 				<key>queuedelaycustom</key>
 				<integer>3</integer>
 				<key>queuedelayimmediatelyinitially</key>
 				<true/>
 				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
 				<integer>1</integer>
+				<key>queuemode</key>
+				<integer>2</integer>
 				<key>runningsubtext</key>
-				<string>Translating...</string>
+				<string>Translating…</string>
 				<key>script</key>
-				<string></string>
+				<string>exec ./translate "$alfred_workflow_keyword" "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
-				<string>prepare_en.py</string>
-				<key>skipuniversalaction</key>
-				<true/>
+				<string></string>
 				<key>subtext</key>
-				<string>Auto-detect input and translate to en-US</string>
+				<string>macOS system translation</string>
 				<key>title</key>
-				<string>Translate to en-US</string>
+				<string>Translate</string>
 				<key>type</key>
-				<integer>8</integer>
+				<integer>0</integer>
 				<key>withspace</key>
 				<true/>
 			</dict>
@@ -93,6 +137,105 @@
 			<string>8C2F1D16-2D5E-4A68-90CE-85D50F639B91</string>
 			<key>version</key>
 			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttreatemptyqueryasnil</key>
+				<false/>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>0</integer>
+				<key>keyword</key>
+				<string>tr</string>
+				<key>queuedelaycustom</key>
+				<integer>3</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>1</integer>
+				<key>queuemode</key>
+				<integer>2</integer>
+				<key>runningsubtext</key>
+				<string>Translating…</string>
+				<key>script</key>
+				<string>exec ./translate auto "$1"</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>subtext</key>
+				<string>macOS system translation</string>
+				<key>title</key>
+				<string>Translate</string>
+				<key>type</key>
+				<integer>0</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>5D8A3F21-C6B9-4E07-A1F3-8B2D7E9C0F56</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>acceptsfiles</key>
+				<false/>
+				<key>acceptsmulti</key>
+				<integer>0</integer>
+				<key>acceptstext</key>
+				<true/>
+				<key>acceptsurls</key>
+				<false/>
+				<key>name</key>
+				<string>Translate</string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.universalaction</string>
+			<key>uid</key>
+			<string>6B1E0C55-1D7A-4C0E-9B53-2E7A3C1F8D21</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>action</key>
+				<integer>0</integer>
+				<key>argument</key>
+				<integer>1</integer>
+				<key>focusedappvariable</key>
+				<false/>
+				<key>focusedappvariablename</key>
+				<string></string>
+				<key>hotkey</key>
+				<integer>0</integer>
+				<key>hotmod</key>
+				<integer>0</integer>
+				<key>leftcursor</key>
+				<false/>
+				<key>modsmode</key>
+				<integer>0</integer>
+				<key>relatedAppsMode</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.trigger.hotkey</string>
+			<key>uid</key>
+			<string>A4E9D2B7-5C31-4F8A-8E62-7D0B9C4E1A35</string>
+			<key>version</key>
+			<integer>2</integer>
 		</dict>
 		<dict>
 			<key>config</key>
@@ -116,74 +259,19 @@
 		<dict>
 			<key>config</key>
 			<dict>
-				<key>concurrently</key>
+				<key>autopaste</key>
+				<true/>
+				<key>clipboardtext</key>
+				<string>{query}</string>
+				<key>ignoredynamicplaceholders</key>
 				<false/>
-				<key>escaping</key>
-				<integer>0</integer>
-				<key>script</key>
-				<string></string>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>scriptfile</key>
-				<string>translate.py</string>
-				<key>type</key>
-				<integer>8</integer>
+				<key>transient</key>
+				<false/>
 			</dict>
 			<key>type</key>
-			<string>alfred.workflow.action.script</string>
+			<string>alfred.workflow.output.clipboard</string>
 			<key>uid</key>
-			<string>3F42764B-B40A-42DA-9B7C-87C6242D90A8</string>
-			<key>version</key>
-			<integer>2</integer>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>alfredfiltersresults</key>
-				<false/>
-				<key>alfredfiltersresultsmatchmode</key>
-				<integer>0</integer>
-				<key>argumenttreatemptyqueryasnil</key>
-				<true/>
-				<key>argumenttrimmode</key>
-				<integer>0</integer>
-				<key>argumenttype</key>
-				<integer>1</integer>
-				<key>escaping</key>
-				<integer>0</integer>
-				<key>keyword</key>
-				<string>zh</string>
-				<key>queuedelaycustom</key>
-				<integer>3</integer>
-				<key>queuedelayimmediatelyinitially</key>
-				<true/>
-				<key>queuedelaymode</key>
-				<integer>0</integer>
-				<key>queuemode</key>
-				<integer>1</integer>
-				<key>runningsubtext</key>
-				<string>Translating...</string>
-				<key>script</key>
-				<string></string>
-				<key>scriptargtype</key>
-				<integer>1</integer>
-				<key>scriptfile</key>
-				<string>prepare_zh.py</string>
-				<key>skipuniversalaction</key>
-				<true/>
-				<key>subtext</key>
-				<string>Auto-detect input and translate to zh-TW</string>
-				<key>title</key>
-				<string>Translate to zh-TW</string>
-				<key>type</key>
-				<integer>8</integer>
-				<key>withspace</key>
-				<true/>
-			</dict>
-			<key>type</key>
-			<string>alfred.workflow.input.scriptfilter</string>
-			<key>uid</key>
-			<string>9D9C9FE2-821B-4978-9646-CAAC1E81D29C</string>
+			<string>C7D4E2A9-3B6F-4F1C-9A85-2E0D7B4C6F13</string>
 			<key>version</key>
 			<integer>3</integer>
 		</dict>
@@ -191,255 +279,63 @@
 	<key>readme</key>
 	<string>Translator
 
-en &lt;text&gt;: translate detected input to en-US and show result in Alfred.
-zh &lt;text&gt;: translate detected input to zh-TW and show result in Alfred.
-// add or delete whatever language keyword you want
+Uses the built-in macOS translation service. No API keys or Shortcuts needed.
 
-Result rows show the Shortcut output directly.
-Press Return on the result row to copy.
+Each keyword of the first Script Filter is a target language: en &lt;text&gt;, zhtw &lt;text&gt;. Add or remove languages by editing its keyword, e.g. en||zhtw||ja||fr. A keyword is a language code (ja, fr) or a language and region (zhtw, zh-cn, engb).
 
-Shortcut mode uses Input File by default and matches Shortcuts that read Shortcut Input.
-DeepL and OpenAI remain optional providers. Only Shortcut provider supports custom language.
+tr &lt;text&gt;: translate into the first keyword language that differs from the text's language.
+Universal Action "Translate", or the hotkey once assigned: runs tr on the selected text.
 
-Shortcut structure:
-
-1. Shortcut Input: Files, Clipboard, Text
-2. Make Rich text from Markdown: {Shortcut Input}
-3. Text: {Rich text from Markdown}
-4. Translate {Text} from {Detected Language} to {Chinese (Mandarin - Taiwan)} // or other language you want
-5. Text: {Translated Text}
-6. Stop and Output {Text}
-
-Tip: Execute `shortcuts list` to make sure the names of your shortcuts.</string>
+Return copies the translation. Command-Return pastes it into the frontmost app.</string>
 	<key>uidata</key>
 	<dict>
 		<key>1B60F299-C363-485E-B872-2DC093F1B2C1</key>
 		<dict>
 			<key>xpos</key>
-			<real>610</real>
+			<integer>520</integer>
 			<key>ypos</key>
-			<real>125</real>
+			<integer>110</integer>
 		</dict>
-		<key>3F42764B-B40A-42DA-9B7C-87C6242D90A8</key>
+		<key>5D8A3F21-C6B9-4E07-A1F3-8B2D7E9C0F56</key>
 		<dict>
 			<key>xpos</key>
-			<real>350</real>
+			<integer>260</integer>
 			<key>ypos</key>
-			<real>125</real>
+			<integer>295</integer>
+		</dict>
+		<key>6B1E0C55-1D7A-4C0E-9B53-2E7A3C1F8D21</key>
+		<dict>
+			<key>xpos</key>
+			<integer>40</integer>
+			<key>ypos</key>
+			<integer>230</integer>
 		</dict>
 		<key>8C2F1D16-2D5E-4A68-90CE-85D50F639B91</key>
 		<dict>
 			<key>xpos</key>
-			<real>60</real>
+			<integer>260</integer>
 			<key>ypos</key>
-			<real>60</real>
+			<integer>60</integer>
 		</dict>
-		<key>9D9C9FE2-821B-4978-9646-CAAC1E81D29C</key>
+		<key>A4E9D2B7-5C31-4F8A-8E62-7D0B9C4E1A35</key>
 		<dict>
 			<key>xpos</key>
-			<real>60</real>
+			<integer>40</integer>
 			<key>ypos</key>
-			<real>190</real>
+			<integer>360</integer>
+		</dict>
+		<key>C7D4E2A9-3B6F-4F1C-9A85-2E0D7B4C6F13</key>
+		<dict>
+			<key>xpos</key>
+			<integer>520</integer>
+			<key>ypos</key>
+			<integer>260</integer>
 		</dict>
 	</dict>
-	<key>userconfigurationconfig</key>
-	<array>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string>shortcut</string>
-				<key>pairs</key>
-				<array>
-					<array>
-						<string>DeepL</string>
-						<string>deepl</string>
-					</array>
-					<array>
-						<string>OpenAI</string>
-						<string>openai</string>
-					</array>
-					<array>
-						<string>Shortcut</string>
-						<string>shortcut</string>
-					</array>
-				</array>
-			</dict>
-			<key>description</key>
-			<string>Translation provider.</string>
-			<key>label</key>
-			<string>Provider</string>
-			<key>type</key>
-			<string>popupbutton</string>
-			<key>variable</key>
-			<string>provider</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string>Translate Text</string>
-				<key>placeholder</key>
-				<string>Translate Text</string>
-				<key>required</key>
-				<false/>
-				<key>trim</key>
-				<true/>
-			</dict>
-			<key>description</key>
-			<string>Shortcut for the zh keyword. It should read Shortcut Input and stop with translated text as output.</string>
-			<key>label</key>
-			<string>Shortcut zh Name</string>
-			<key>type</key>
-			<string>textfield</string>
-			<key>variable</key>
-			<string>shortcut_zh_name</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string>Translate Text EN</string>
-				<key>placeholder</key>
-				<string>Translate Text EN</string>
-				<key>required</key>
-				<false/>
-				<key>trim</key>
-				<true/>
-			</dict>
-			<key>description</key>
-			<string>Shortcut for the en keyword. It should read Shortcut Input and stop with translated text as output.</string>
-			<key>label</key>
-			<string>Shortcut en Name</string>
-			<key>type</key>
-			<string>textfield</string>
-			<key>variable</key>
-			<string>shortcut_en_name</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string>file</string>
-				<key>pairs</key>
-				<array>
-					<array>
-						<string>Clipboard</string>
-						<string>clipboard</string>
-					</array>
-					<array>
-						<string>Input File</string>
-						<string>file</string>
-					</array>
-				</array>
-			</dict>
-			<key>description</key>
-			<string>Input File works with Shortcuts that read Shortcut Input. Clipboard is for legacy Shortcuts that read the clipboard.</string>
-			<key>label</key>
-			<string>Shortcut Input Mode</string>
-			<key>type</key>
-			<string>popupbutton</string>
-			<key>variable</key>
-			<string>shortcut_input_mode</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string></string>
-				<key>placeholder</key>
-				<string>DeepL auth key</string>
-				<key>required</key>
-				<false/>
-				<key>trim</key>
-				<true/>
-			</dict>
-			<key>description</key>
-			<string>Required when Provider is DeepL.</string>
-			<key>label</key>
-			<string>DeepL API Key</string>
-			<key>type</key>
-			<string>textfield</string>
-			<key>variable</key>
-			<string>deepl_api_key</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string>auto</string>
-				<key>pairs</key>
-				<array>
-					<array>
-						<string>Auto</string>
-						<string>auto</string>
-					</array>
-					<array>
-						<string>Free</string>
-						<string>free</string>
-					</array>
-					<array>
-						<string>Pro</string>
-						<string>pro</string>
-					</array>
-				</array>
-			</dict>
-			<key>description</key>
-			<string>Auto uses Free endpoint for keys ending in :fx, otherwise Pro endpoint.</string>
-			<key>label</key>
-			<string>DeepL API Plan</string>
-			<key>type</key>
-			<string>popupbutton</string>
-			<key>variable</key>
-			<string>deepl_api_plan</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string></string>
-				<key>placeholder</key>
-				<string>sk-...</string>
-				<key>required</key>
-				<false/>
-				<key>trim</key>
-				<true/>
-			</dict>
-			<key>description</key>
-			<string>Required when Provider is OpenAI.</string>
-			<key>label</key>
-			<string>OpenAI API Key</string>
-			<key>type</key>
-			<string>textfield</string>
-			<key>variable</key>
-			<string>openai_api_key</string>
-		</dict>
-		<dict>
-			<key>config</key>
-			<dict>
-				<key>default</key>
-				<string>gpt-5-mini</string>
-				<key>placeholder</key>
-				<string>gpt-5-mini</string>
-				<key>required</key>
-				<false/>
-				<key>trim</key>
-				<true/>
-			</dict>
-			<key>description</key>
-			<string>OpenAI model for translation.</string>
-			<key>label</key>
-			<string>Model</string>
-			<key>type</key>
-			<string>textfield</string>
-			<key>variable</key>
-			<string>model</string>
-		</dict>
-	</array>
 	<key>variablesdontexport</key>
 	<array/>
 	<key>version</key>
-	<string>1.10.0</string>
+	<string>2.0.0</string>
 	<key>webaddress</key>
 	<string></string>
 </dict>

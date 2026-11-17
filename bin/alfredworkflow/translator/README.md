@@ -1,36 +1,23 @@
-# EN/ZH Translator
+# Translator
 
-Alfred workflow with two keywords:
+Alfred workflow that translates with the built-in macOS translation service and shows the result right in Alfred. No API keys or Shortcuts needed.
 
-- `en <text>`: auto-detect input language, translate to `en-US`, show result in Alfred.
-- `zh <text>`: auto-detect input language, translate to `zh-TW`, show result in Alfred.
+## Languages are keywords
 
-Result rows show the Shortcut output directly.
+Each keyword of the first Script Filter is a target language. The default is `en||zhtw`:
 
-Press `Return` on the result row to copy.
+- `en <text>`: translate to English (US).
+- `zhtw <text>`: translate to Chinese (Taiwan).
 
-Setup:
+To add or remove languages, edit that Script Filter's keyword, for example `en||zhtw||ja||fr`. A keyword is either a language code (`ja`, `fr`, `en`) or a language plus region (`zhtw`, `zh-cn`, `engb`, `ptbr`). A bare code uses your macOS preferred languages to pick the region, then the language's main locale.
 
-1. Import `EN-ZH-Translator.alfredworkflow`.
-2. Open workflow configuration.
-3. Set `Provider`.
-4. Shortcut provider works by default with `Translate Text` and `Translate Text EN`.
+## Other ways in
 
-Default provider: Shortcut.
+- `tr <text>`: translate into the first keyword language that differs from the text's language. With `en||zhtw`, English goes to Chinese (Taiwan) and everything else goes to English.
+- Universal Action **Translate**, or the included hotkey once assigned: runs `tr` on the selected text.
 
-DeepL targets:
+Return copies the translation. Command-Return pastes it into the frontmost app.
 
-- `en`: `EN-US`
-- `zh`: `ZH-HANT`
+## Notes
 
-DeepL and OpenAI remain available by changing `Provider`.
-
-Shortcut provider:
-
-- `Shortcut Input Mode = Input File`: default. Works with Shortcuts that read `Shortcut Input`, then stop and output translated text.
-- `Shortcut Input Mode = Clipboard`: legacy mode for Shortcuts that read Clipboard.
-
-Default Shortcut names:
-
-- `zh`: `Translate Text`
-- `en`: `Translate Text EN`
+The source language is detected automatically. The workflow uses the private `_LTTextSession` class from Apple's Translation framework with online translation allowed, so text may be sent to Apple when offline language models aren't downloaded. Requests abandoned while typing are cancelled so they don't queue up. If macOS changes the private API, the workflow shows an error row instead of crashing.
