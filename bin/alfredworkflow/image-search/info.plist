@@ -124,13 +124,13 @@
 				<key>escaping</key>
 				<integer>0</integer>
 				<key>script</key>
-				<string></string>
+				<string>./search google "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
-				<string>search-google</string>
+				<string></string>
 				<key>type</key>
-				<integer>8</integer>
+				<integer>0</integer>
 			</dict>
 			<key>type</key>
 			<string>alfred.workflow.action.script</string>
@@ -229,13 +229,13 @@
 				<key>escaping</key>
 				<integer>0</integer>
 				<key>script</key>
-				<string></string>
+				<string>./search yandex "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
-				<string>search-yandex</string>
+				<string></string>
 				<key>type</key>
-				<integer>8</integer>
+				<integer>0</integer>
 			</dict>
 			<key>type</key>
 			<string>alfred.workflow.action.script</string>
@@ -388,7 +388,7 @@ Google opens a one-shot local upload page in the macOS default browser so browse
 	<key>variablesdontexport</key>
 	<array/>
 	<key>version</key>
-	<string>2.0.5</string>
+	<string>2.2.0</string>
 	<key>webaddress</key>
 	<string></string>
 </dict>
