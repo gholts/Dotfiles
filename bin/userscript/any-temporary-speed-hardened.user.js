@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Temporary Speed Kit
 // @namespace    gholts.temporary-speed.kit
-// @version      2026.06.21
+// @version      2026.11.17.1
 // @description  Hold a key to speed up playing videos, release to restore.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -28,6 +28,13 @@
     const MIN_SPEED = 0.25;
     const MAX_SPEED = 16;
 
+    const FIELDS = {
+        speed: ["target_speed", clampSpeed],
+        key: ["trigger_key", normalizeKey],
+        pitch: ["preserve_pitch", Boolean],
+        syncFix: ["av_sync_fix", Boolean],
+    };
+
     const originalByVideo = new Map();
     let active = false;
     let settings = loadSettings();
@@ -47,36 +54,18 @@
     }
 
     function loadSettings() {
-        return {
-            speed: clampSpeed(GM_getValue("target_speed", DEFAULTS.speed)),
-            key: normalizeKey(GM_getValue("trigger_key", DEFAULTS.key)),
-            pitch: Boolean(GM_getValue("preserve_pitch", DEFAULTS.pitch)),
-            syncFix: Boolean(GM_getValue("av_sync_fix", DEFAULTS.syncFix)),
-        };
+        const loaded = {};
+        for (const [name, [store, parse]] of Object.entries(FIELDS)) {
+            loaded[name] = parse(GM_getValue(store, DEFAULTS[name]));
+        }
+        return loaded;
     }
 
-    function setSpeed(value) {
-        settings.speed = clampSpeed(value);
-        GM_setValue("target_speed", settings.speed);
-        return settings.speed;
-    }
-
-    function setKey(value) {
-        settings.key = normalizeKey(value);
-        GM_setValue("trigger_key", settings.key);
-        return settings.key;
-    }
-
-    function setPitch(value) {
-        settings.pitch = Boolean(value);
-        GM_setValue("preserve_pitch", settings.pitch);
-        return settings.pitch;
-    }
-
-    function setSyncFix(value) {
-        settings.syncFix = Boolean(value);
-        GM_setValue("av_sync_fix", settings.syncFix);
-        return settings.syncFix;
+    function save(name, value) {
+        const [store, parse] = FIELDS[name];
+        settings[name] = parse(value);
+        GM_setValue(store, settings[name]);
+        registerMenuCommands();
     }
 
     function getPlayingVideos(root = document, out = new Set()) {
@@ -179,12 +168,8 @@
         );
     }
 
-    function isTriggerEvent(event) {
+    function isTriggerKey(event) {
         return (
-            !event.ctrlKey &&
-            !event.altKey &&
-            !event.shiftKey &&
-            !event.metaKey &&
             typeof event.key === "string" &&
             event.key.toLowerCase() === settings.key
         );
@@ -196,7 +181,11 @@
             if (
                 event.repeat ||
                 active ||
-                !isTriggerEvent(event) ||
+                event.ctrlKey ||
+                event.altKey ||
+                event.shiftKey ||
+                event.metaKey ||
+                !isTriggerKey(event) ||
                 isEditableTarget(event.target)
             )
                 return;
@@ -208,7 +197,7 @@
     document.addEventListener(
         "keyup",
         (event) => {
-            if (isTriggerEvent(event)) restoreSpeed();
+            if (isTriggerKey(event)) restoreSpeed();
         },
         true,
     );
@@ -241,35 +230,23 @@
                         `Target speed (${MIN_SPEED}-${MAX_SPEED}):`,
                         settings.speed,
                     );
-                    if (value !== null) {
-                        setSpeed(value);
-                        registerMenuCommands();
-                    }
+                    if (value !== null) save("speed", value);
                 },
             ],
             [
                 `Set trigger key (${settings.key.toUpperCase()})`,
                 () => {
                     const value = prompt("Single trigger key:", settings.key);
-                    if (value !== null) {
-                        setKey(value);
-                        registerMenuCommands();
-                    }
+                    if (value !== null) save("key", value);
                 },
             ],
             [
                 `Audio pitch = ${settings.pitch ? "on" : "off"}`,
-                () => {
-                    setPitch(!settings.pitch);
-                    registerMenuCommands();
-                },
+                () => save("pitch", !settings.pitch),
             ],
             [
                 `A/V sync fix = ${settings.syncFix ? "on" : "off"}`,
-                () => {
-                    setSyncFix(!settings.syncFix);
-                    registerMenuCommands();
-                },
+                () => save("syncFix", !settings.syncFix),
             ],
         ];
 

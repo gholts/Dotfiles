@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         X Block Toolkit
 // @namespace    gholts.x.block-toolkit
-// @version      2026.08.01.19
+// @version      2026.11.17.1
 // @description  Bulk-block X Lists and Communities and add native-style block controls to posts and account rows.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -254,18 +254,16 @@
 
             if (response.ok) return;
 
+            const wait = options.cancellable ? cancellableDelay : delay;
             if (response.status === 429 && attempt < 4) {
                 const waitMs = rateLimitDelay(response);
                 options.onRateLimit?.(waitMs);
-                if (options.cancellable) await cancellableDelay(waitMs);
-                else await delay(waitMs);
+                await wait(waitMs);
                 continue;
             }
 
             if (response.status >= 500 && attempt < 4) {
-                if (options.cancellable)
-                    await cancellableDelay(2000 * (attempt + 1));
-                else await delay(2000 * (attempt + 1));
+                await wait(2000 * (attempt + 1));
                 continue;
             }
 
@@ -562,8 +560,6 @@
                         return;
                     }
 
-                    // X owns success handling and timeline removal. If X keeps this
-                    // post rendered, allow retry after its native UI settles.
                     pageWindow.setTimeout(() => {
                         resetPostButton(button, currentHandle);
                     }, 4000);
@@ -622,8 +618,6 @@
             else existing.remove();
         }
 
-        // Clone X's complete Grok action slot. This preserves native spacing,
-        // hover target, responsive classes, icon sizing, and alignment.
         const slot = grokSlot.cloneNode(true);
         const button = slot.matches("button")
             ? slot
@@ -747,21 +741,22 @@
         );
     }
 
+    function userAction(cell) {
+        for (const button of cell.querySelectorAll("button[data-testid]")) {
+            const match = button.dataset.testid.match(
+                /^(\d+)-(follow|unfollow|unblock)$/,
+            );
+            if (match) return { button, userId: match[1], name: match[2] };
+        }
+        return null;
+    }
+
     function addSuggestionBlockButton(cell) {
         if (!isSuggestionCell(cell)) return;
 
-        const action = Array.from(
-            cell.querySelectorAll("button[data-testid]"),
-        ).find((button) =>
-            /^\d+-(?:follow|unfollow|unblock)$/.test(button.dataset.testid),
-        );
+        const { button: action, userId, name: actionName } =
+            userAction(cell) || {};
         if (!action?.parentElement) return;
-
-        const match = action.dataset.testid.match(
-            /^(\d+)-(follow|unfollow|unblock)$/,
-        );
-        if (!match) return;
-        const [, userId, actionName] = match;
         const existing = cell.querySelector(`[${SUGGESTION_BLOCK_ATTR}]`);
         const shouldHide =
             actionName === "unblock" ||
@@ -898,10 +893,7 @@
             return null;
         }
 
-        const primaryColumn = document.querySelector(
-            '[data-testid="primaryColumn"]',
-        );
-        const root = primaryColumn;
+        const root = document.querySelector('[data-testid="primaryColumn"]');
         if (!root) return null;
 
         const heading = Array.from(
@@ -1050,22 +1042,11 @@
         for (const cell of root.querySelectorAll(
             '[data-testid="UserCell"]',
         )) {
-            const action = Array.from(
-                cell.querySelectorAll("button[data-testid]"),
-            ).find((button) =>
-                /^\d+-(?:follow|unfollow|unblock)$/.test(
-                    button.getAttribute("data-testid") || "",
-                ),
-            );
+            const action = userAction(cell);
             if (!action) continue;
 
-            const match = (action.getAttribute("data-testid") || "").match(
-                /^(\d+)-(follow|unfollow|unblock)$/,
-            );
-            if (!match) continue;
-
-            const [, userId, actionName] = match;
-            if (actionName === "unblock") {
+            const { userId } = action;
+            if (action.name === "unblock") {
                 alreadyBlocked.add(userId);
                 targets.delete(userId);
             } else if (!alreadyBlocked.has(userId)) {

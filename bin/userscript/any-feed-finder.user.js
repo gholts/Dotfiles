@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Feed Finder Kit
 // @namespace    gholts.feed-finder.kit
-// @version      2026.06.21
+// @version      2026.11.17.1
 // @description  Find and copy RSS, Atom, and JSON feeds for the current page.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -51,14 +51,18 @@
     const FEED_CONTENT_TYPES =
         /\b(application\/(rss|atom|rdf)\+xml|application\/feed\+json|application\/json|application\/xml|text\/xml)\b/i;
     const FEED_SELECTOR =
-        'link[type*="rss"], link[type*="atom"], link[type*="xml"], link[type*="json"], link[rel~="alternate"], a[href*="rss"], a[href*="feed"], a[href*="atom"], a[href$=".xml"], a[href$=".json"]';
-    const HREF_FEED_RE = /(\/feed|\/rss|\/atom|(\.(xml|rss|atom|json))$)/i;
+        'link[type], link[rel~="alternate" i], a[href*="rss" i], a[href*="feed" i], a[href*="atom" i], a[href$=".xml" i]';
+    const FEED_TYPE_RE = /\b(?:(?:rss|atom|rdf)\+xml|feed\+json)\b/i;
+    const FEED_HREF_RE = /(?:^|[/._=-])(?:feeds?|rss|atom)(?:[/._?#&=-]|$)/i;
+    const FEED_HINT_RE = /\b(?:rss|atom|feed)\b/i;
     const PROBE_TIMEOUT_MS = 5000;
     const PROBE_CONCURRENCY = 3;
     const CONFIG = { ...DEFAULTS };
 
+    const pageKey = () => location.href.replace(/#.*$/, "");
+
     const State = {
-        currentUrl: location.href,
+        currentUrl: pageKey(),
         hasSearched: false,
         lastStatus: "idle",
         lastFeeds: [],
@@ -164,7 +168,6 @@
         return (
             element.getAttribute("title") ||
             element.getAttribute("aria-label") ||
-            element.title ||
             element.textContent?.trim() ||
             fallback
         );
@@ -321,30 +324,23 @@
     }
 
     function extractFeedUrl(element) {
+        const href = element.getAttribute("href") || "";
+        if (!href || /^(?:javascript|data):/i.test(href)) return "";
         if (element.closest("svg")) return "";
 
-        const node = element.nodeName.toLowerCase();
-        const href = element.getAttribute("href") || "";
-        const type = element.getAttribute("type") || "";
-        const rel = element.getAttribute("rel") || "";
-        let isFeed = false;
-
-        if (node === "link") {
+        let isFeed;
+        if (element.localName === "link") {
             isFeed =
-                /(rss|atom|xml|json)/i.test(type) ||
-                (/\balternate\b/i.test(rel) && HREF_FEED_RE.test(href));
-        } else if (node === "a" && href && !/^(javascript|data):/i.test(href)) {
-            if (HREF_FEED_RE.test(href)) {
-                isFeed = true;
-            } else {
-                const image = element.querySelector("img");
-                const imageText = image
-                    ? `${image.src || ""} ${image.className || ""}`.toLowerCase()
-                    : "";
-                isFeed =
-                    /(rss|feed|atom)/.test(imageText) ||
-                    /(rss|feed|atom)/i.test(element.textContent.trim());
-            }
+                FEED_TYPE_RE.test(element.type) ||
+                (/\balternate\b/i.test(element.rel) &&
+                    FEED_HREF_RE.test(href));
+        } else {
+            const image = element.querySelector("img");
+            isFeed =
+                FEED_HREF_RE.test(href) ||
+                FEED_HINT_RE.test(
+                    `${element.textContent} ${image?.src || ""} ${image?.className || ""}`,
+                );
         }
 
         return isFeed ? safeUrl(element.href) : "";
@@ -373,20 +369,15 @@
     }
 
     async function probeFeeds(url, feeds) {
-        if (!CONFIG.probeCommonPaths) return;
+        if (!CONFIG.probeCommonPaths || feeds.size) return;
 
-        const bases = [`${url.protocol}//${url.host}`];
+        const bases = [url.origin];
         const path = url.pathname.replace(/\/$/, "");
-        if (path && path !== "/")
-            bases.push(`${url.protocol}//${url.host}${path}`);
+        if (path) bases.push(`${url.origin}${path}`);
 
-        const targets = [];
-        for (const base of bases.slice(0, 2)) {
-            for (const pathPart of PROBE_PATHS) {
-                const target = `${base}${pathPart}`;
-                if (!feeds.has(target)) targets.push(target);
-            }
-        }
+        const targets = bases.flatMap((base) =>
+            PROBE_PATHS.map((pathPart) => `${base}${pathPart}`),
+        );
 
         await runLimited(targets, PROBE_CONCURRENCY, async (target) => {
             try {
@@ -426,7 +417,7 @@
         if (State.hasSearched && !force) return;
         State.hasSearched = true;
 
-        const pageUrl = location.href;
+        const pageUrl = pageKey();
         const scanId = ++State.scanId;
         registerMenu("scanning", []);
 
@@ -445,8 +436,8 @@
     }, 500);
 
     function mount() {
-        if (location.href !== State.currentUrl) {
-            State.currentUrl = location.href;
+        if (pageKey() !== State.currentUrl) {
+            State.currentUrl = pageKey();
             State.hasSearched = false;
             State.scanId++;
             registerMenu("idle", []);
@@ -475,7 +466,6 @@
     patchHistory("pushState");
     patchHistory("replaceState");
     window.addEventListener("popstate", mount);
-    window.addEventListener("hashchange", mount);
     document.addEventListener("astro:page-load", mount);
     document.addEventListener("astro:after-swap", mount);
     window.navigation?.addEventListener("navigatesuccess", mount);

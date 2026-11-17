@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub Raw Jump Kit
 // @namespace    gholts.github.jump-to-githubusercontent
-// @version      2026.10.19.1
+// @version      2026.11.17.1
 // @description  Add GitHub-style jumps between blob pages and raw.githubusercontent.com.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -46,11 +46,10 @@
         "text-decoration:none",
         "white-space:nowrap",
     ].join(";");
-    const DEFAULTS = { headerButton: true, rawPageButton: true, debug: false };
+    const DEFAULTS = { headerButton: true, rawPageButton: true };
     const MENUS = [
         ["headerButton", "Header button"],
         ["rawPageButton", "Raw page button"],
-        ["debug", "Debug logs"],
     ];
     const config = { ...DEFAULTS };
     const state = { menus: [], observer: null, timer: 0, started: false };
@@ -67,10 +66,6 @@
         try {
             GM_setValue(`${STORE}${key}`, value);
         } catch {}
-    }
-
-    function log(...args) {
-        if (config.debug) console.debug("[GitHubRawJumpKit]", ...args);
     }
 
     function menus() {
@@ -170,10 +165,7 @@
         const anchor =
             raw?.closest(BUTTON_GROUP) ||
             (parent?.children.length === 1 ? parent : raw);
-        if (!raw || !href || !anchor?.parentElement) {
-            log("toolbar not ready");
-            return;
-        }
+        if (!href || !anchor?.parentElement) return;
 
         const current = document.getElementById(HEADER_ID);
         if (current?.parentElement === anchor.parentElement) {
@@ -223,9 +215,7 @@
 
     function render() {
         if (location.hostname === "github.com") renderGitHub();
-        else if (location.hostname === "raw.githubusercontent.com") {
-            renderRaw();
-        }
+        else renderRaw();
     }
 
     function schedule() {
@@ -236,28 +226,12 @@
         }, 120);
     }
 
-    function patchHistory() {
-        for (const key of ["pushState", "replaceState"]) {
-            const original = history[key];
-            if (original.__githubRawJumpKit) continue;
-            history[key] = function patchedHistory(...args) {
-                const result = original.apply(this, args);
-                schedule();
-                return result;
-            };
-            history[key].__githubRawJumpKit = true;
-        }
-    }
-
     function start() {
         if (!state.started) {
             state.started = true;
             menus();
-            patchHistory();
             window.addEventListener("popstate", schedule);
             window.addEventListener("pageshow", schedule);
-            document.addEventListener("turbo:load", schedule);
-            document.addEventListener("turbo:render", schedule);
         }
         if (!state.observer && document.documentElement) {
             state.observer = new MutationObserver(schedule);

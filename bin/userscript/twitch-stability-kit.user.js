@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Twitch Stability Kit
 // @namespace    gholts.twitch.stability-kit
-// @version      2026.10.28.8
+// @version      2026.11.17.1
 // @description  7TV emotes, ad suppression, max quality, channel points, UI cleanup, and playback keepalive for Twitch and MultiTwitch embeds.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -1608,7 +1608,7 @@
 (() => {
     "use strict";
 
-    const VERSION = "2026.10.28.8";
+    const VERSION = "2026.11.17.1";
 
     const DEFAULTS = Object.freeze({
         rewind: true,
@@ -1685,7 +1685,6 @@
 
     const host = location.hostname;
     const path = location.pathname || "";
-    // frameElement is null for cross-origin frames, too.
     const isFrame = window.self !== window.top;
     const isChatEmbed = /^\/embed\/[^/]+\/chat\/?$/.test(path);
     const isEmbed =
@@ -1694,7 +1693,6 @@
         path.startsWith("/embed/");
     if (isChatEmbed || (isFrame && !isEmbed)) return;
 
-    // VAFT overrides document.hidden; use the browser's actual visibility state.
     const isDocumentHidden = Object.getOwnPropertyDescriptor(
         Document.prototype,
         "hidden",
@@ -1802,7 +1800,6 @@
                 return original.apply(this, arguments);
             }
             const output = this.options.formattingFn(value);
-            // Preserve CountUp's HTML/TrustedHTML formatting and parser semantics.
             if (typeof output !== "string" || /[<&\r\u0000]/.test(output)) {
                 element.innerHTML = output;
                 return;
@@ -1861,8 +1858,6 @@
             Object.getOwnPropertyDescriptor(prototype, "printValue")
         )
             return;
-        // Legacy CountUp assigns this method in its constructor. Intercept that
-        // assignment once; future counters need no rescanning, timers or hooks.
         Object.defineProperty(prototype, "printValue", {
             configurable: true,
             set: installCounterWriter,
@@ -1933,7 +1928,6 @@
         const style = document.createElement("style");
         style.id = "twitch-kit-css";
         style.textContent = `
-      /* Persistent slots: React may replace contents or set inline display again. */
       #directory-banner,
       [data-a-target="browse-banner-ad-slot"],
       [data-test-selector="sda-wrapper"],
@@ -2203,8 +2197,6 @@
      * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
      * SOFTWARE.
      */
-    // Supply an accessible recording to Twitch's existing DVR context. Twitch
-    // renders and owns the seekbar, time labels, previews, shortcuts and LIVE.
     function createRewind() {
         let session = null;
         let pendingSeek = null;
@@ -2321,7 +2313,6 @@
                 nauthsig: token.signature,
                 allow_source: "true",
             });
-            // Only wire recordings Twitch serves directly. No entitlement changes.
             const response = await request(
                 s,
                 `https://usher.ttvnw.net/vod/${id}.m3u8?${params}`,
@@ -2389,7 +2380,6 @@
             const value = context();
             const content = value?.content;
             const route = channelFromUrl();
-            // React can briefly detach the player while keeping its DVR provider.
             if (!value && session) {
                 if (!CONFIG.rewind || session.channel !== route)
                     session.abort.abort();
@@ -2412,7 +2402,6 @@
                 document.documentElement.dataset.twitchKitRewinding = "1";
             else delete document.documentElement.dataset.twitchKitRewinding;
             if (!channel) return;
-            // Existing native rewind (including its hidden-bar preference) wins.
             if (!session && (content.type !== "live" || content.dvrVideoID))
                 return;
             if (!session)
@@ -2439,7 +2428,7 @@
             const bar = getPlayerRoot()?.querySelector(
                 '[data-a-target="player-seekbar"]',
             );
-            if (!bar) return false; // Native controls remove this during ads.
+            if (!bar) return false;
             for (let node = getReactFiber(bar); node; node = node.return) {
                 const props = node.memoizedProps;
                 if (
@@ -2453,16 +2442,13 @@
                     props.vodLength < props.seekbarMin
                 )
                     continue;
-                // Older native seek completions can overwrite the thumb mid-burst.
                 const position =
                     pendingSeek?.bar === bar
                         ? pendingSeek.target
                         : props.thumbLocation;
-                // The newest recording ends before live; skip that unavailable gap.
                 let target = Math.max(props.seekbarMin, position + seconds);
                 if (seconds < 0) target = Math.min(target, props.vodLength);
                 else if (target >= props.vodLength) {
-                    // Native LIVE changes content; a media seek into the gap cannot.
                     const live =
                         bar.parentElement?.parentElement?.querySelector(
                             '[role="button"]',
@@ -2871,31 +2857,21 @@
         if (!video || boundVideos.has(video)) return;
         boundVideos.add(video);
         wasPlaying = !video.paused && !video.ended;
-        video.addEventListener(
-            "play",
-            () => {
-                if (!isManagedVideo(video)) return;
-                wasPlaying = true;
-                rewind.update();
-                burstQuality(6000);
-                updatePiPKeepalive();
-                requestWakeLock();
-            },
-            true,
-        );
-        video.addEventListener(
-            "playing",
-            () => {
-                if (!isManagedVideo(video)) return;
-                rewind.finishSeek(video);
-                wasPlaying = true;
-                rewind.update();
-                burstQuality(6000);
-                updatePiPKeepalive();
-                requestWakeLock();
-            },
-            true,
-        );
+        for (const name of ["play", "playing"]) {
+            video.addEventListener(
+                name,
+                () => {
+                    if (!isManagedVideo(video)) return;
+                    rewind.finishSeek(video);
+                    wasPlaying = true;
+                    rewind.update();
+                    burstQuality(6000);
+                    updatePiPKeepalive();
+                    requestWakeLock();
+                },
+                true,
+            );
+        }
         video.addEventListener("seeked", () => {
             if (isManagedVideo(video)) rewind.finishSeek(video);
         });
@@ -2907,7 +2883,6 @@
                 const now = Date.now();
                 if (
                     !isDocumentHidden() ||
-                    // PiP's pause button is outside this document's input events.
                     isPiPVideo(video) ||
                     now - lastPlayerInputAt < CONFIG.manualPauseWindowMs
                 ) {
@@ -3126,7 +3101,6 @@
                 )
             )
                 return false;
-            // Time labels and ad-status text do not require rescanning the page.
             return (
                 [...mutation.addedNodes, ...mutation.removedNodes].some(
                     (node) => node.nodeType === 1,
@@ -3135,7 +3109,6 @@
         });
     }
 
-    // Public 7TV API, native Twitch message fragments. No replacement chat renderer.
     function createSevenTV() {
         const CHAT =
             '[data-test-selector="chat-scrollable-area__message-container"], .video-chat__message-list-wrapper';
@@ -3212,7 +3185,7 @@
                 span.closest("a,button")
             )
                 return;
-            delete span.dataset.twitchKitEmotes; // React may recycle the span with new text.
+            delete span.dataset.twitchKitEmotes;
             const text = span.textContent;
             let output = null,
                 cursor = 0,

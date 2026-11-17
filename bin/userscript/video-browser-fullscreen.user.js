@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Video Browser Fullscreen Kit
 // @namespace    gholts.video-browser-fullscreen.kit
-// @version      2026.08.25
+// @version      2026.11.17.1
 // @description  Keep macOS video fullscreen inside the browser window and preserve rapid play/pause clicks.
 // @author       Gholts
 // @license      GNU Affero General Public License v3.0
@@ -648,13 +648,7 @@
     }
 
     function restoreAttribute(element, name, snapshot, expectedValue) {
-        if (
-            arguments.length >= 4 &&
-            (!element.hasAttribute(name) ||
-                element.getAttribute(name) !== expectedValue)
-        ) {
-            return false;
-        }
+        if (element.getAttribute(name) !== expectedValue) return false;
 
         if (snapshot.existed) {
             element.setAttribute(name, snapshot.value ?? "");
