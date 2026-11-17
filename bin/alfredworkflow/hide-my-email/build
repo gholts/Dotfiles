@@ -1,0 +1,22 @@
+#!/bin/zsh
+set -euo pipefail
+repo=https://github.com/gholts/NSHideMyEmail.git
+workflow_dir=${0:A:h}
+output=${1:-/tmp/Hide My Email.alfredworkflow}
+version=${NSHIDEMYEMAIL_VERSION:-$(/usr/bin/git ls-remote --tags --refs "$repo" 'v*' |
+  /usr/bin/sed -n 's|.*refs/tags/v\([0-9]*\.[0-9]*\.[0-9]*\)$|\1|p' | /usr/bin/sort -t. -k1,1n -k2,2n -k3,3n | /usr/bin/tail -1)}
+if [[ ! $version =~ '^[0-9]+\.[0-9]+\.[0-9]+$' ]]; then
+  print -u2 -r -- "No NSHideMyEmail release found."
+  exit 1
+fi
+work=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/hide-my-email.XXXXXX")
+trap '/bin/rm -rf -- "$work"' EXIT
+/usr/bin/git -c advice.detachedHead=false clone -q --depth 1 --branch "v$version" "$repo" "$work/NSHideMyEmail"
+/usr/bin/make -s -C "$work/NSHideMyEmail" hme >&2
+/bin/mkdir "$work/stage"
+/bin/cp "$work/NSHideMyEmail/hme" "$workflow_dir/"{info.plist,README.md,icon.png} "$work/stage/"
+/usr/bin/plutil -replace version -string "$version" "$work/stage/info.plist"
+/bin/mkdir -p "${output:h}"
+(cd "$work/stage" && /usr/bin/zip -q -r ../archive.alfredworkflow .)
+/bin/mv -f "$work/archive.alfredworkflow" "$output"
+print -r -- "$output"

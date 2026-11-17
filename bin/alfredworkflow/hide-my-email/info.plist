@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>com.gholts.hide-my-email</string>
+	<key>connections</key>
+	<dict>
+		<key>3F7C2A91-6E4B-4D58-9B1A-0C8E5D2F7A64</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>B82D5E17-4A9C-4F3E-8D61-7E0A9C3B5F28</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+	</dict>
+	<key>createdby</key>
+	<string>Gholts</string>
+	<key>description</key>
+	<string>Create iCloud Hide My Email addresses with NSHideMyEmail.</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>Hide My Email</string>
+	<key>objects</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>argumenttype</key>
+				<integer>0</integer>
+				<key>keyword</key>
+				<string>hme</string>
+				<key>subtext</key>
+				<string>Label: {query}</string>
+				<key>text</key>
+				<string>Create Hide My Email address</string>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.keyword</string>
+			<key>uid</key>
+			<string>3F7C2A91-6E4B-4D58-9B1A-0C8E5D2F7A64</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>0</integer>
+				<key>script</key>
+				<string>exec ./hme -c "$1"</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>B82D5E17-4A9C-4F3E-8D61-7E0A9C3B5F28</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+	</array>
+	<key>readme</key>
+	<string># Hide My Email
+
+Create iCloud Hide My Email addresses from Alfred with Apple's own sheet, using [NSHideMyEmail](https://github.com/gholts/NSHideMyEmail).
+
+Type `hme &lt;label&gt;`, then click **Use** in Apple's sheet. The new address is copied to the clipboard.
+</string>
+	<key>uidata</key>
+	<dict>
+		<key>3F7C2A91-6E4B-4D58-9B1A-0C8E5D2F7A64</key>
+		<dict>
+			<key>xpos</key>
+			<integer>40</integer>
+			<key>ypos</key>
+			<integer>60</integer>
+		</dict>
+		<key>B82D5E17-4A9C-4F3E-8D61-7E0A9C3B5F28</key>
+		<dict>
+			<key>xpos</key>
+			<integer>260</integer>
+			<key>ypos</key>
+			<integer>60</integer>
+		</dict>
+	</dict>
+	<key>version</key>
+	<string>1.0.0</string>
+	<key>webaddress</key>
+	<string>https://github.com/gholts/NSHideMyEmail</string>
+</dict>
+</plist>
