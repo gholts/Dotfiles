@@ -86,11 +86,11 @@
 				<key>runningsubtext</key>
 				<string>Querying geolocation...</string>
 				<key>script</key>
-				<string></string>
+				<string>./ipgeo query "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
-				<string>query</string>
+				<string></string>
 				<key>skipuniversalaction</key>
 				<true/>
 				<key>subtext</key>
@@ -98,7 +98,7 @@
 				<key>title</key>
 				<string>Query IP Geolocation</string>
 				<key>type</key>
-				<integer>8</integer>
+				<integer>0</integer>
 				<key>withspace</key>
 				<true/>
 			</dict>
@@ -137,11 +137,11 @@
 				<key>runningsubtext</key>
 				<string>Loading IP info...</string>
 				<key>script</key>
-				<string></string>
+				<string>./ipgeo my "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
-				<string>myip</string>
+				<string></string>
 				<key>skipuniversalaction</key>
 				<true/>
 				<key>subtext</key>
@@ -149,7 +149,7 @@
 				<key>title</key>
 				<string>My IP Geolocation</string>
 				<key>type</key>
-				<integer>8</integer>
+				<integer>0</integer>
 				<key>withspace</key>
 				<false/>
 			</dict>
@@ -207,11 +207,11 @@
 				<key>runningsubtext</key>
 				<string>Loading IP addresses...</string>
 				<key>script</key>
-				<string></string>
+				<string>./ipgeo copy "$1"</string>
 				<key>scriptargtype</key>
 				<integer>1</integer>
 				<key>scriptfile</key>
-				<string>copyip</string>
+				<string></string>
 				<key>skipuniversalaction</key>
 				<true/>
 				<key>subtext</key>
@@ -219,7 +219,7 @@
 				<key>title</key>
 				<string>Copy IP</string>
 				<key>type</key>
-				<integer>8</integer>
+				<integer>0</integer>
 				<key>withspace</key>
 				<true/>
 			</dict>
@@ -240,7 +240,7 @@ copyip: copy local/public IPv4/IPv6.
 
 Enter copies selected row. Command-Enter copies all info where available.
 
-Based on Raycast IP Geolocation extension at commit 870667fc671801a467deb7c4c7fc72992efe3820.</string>
+Based on the Raycast IP Geolocation extension by koinzhang, with contributions from foof (commit 870667fc671801a467deb7c4c7fc72992efe3820). Copyright (c) 2021 Raycast, used under the MIT License. See NOTICE.</string>
 	<key>uidata</key>
 	<dict>
 		<key>0B169016-922F-4E97-B57F-765ED8B477E0</key>
@@ -436,7 +436,7 @@ Based on Raycast IP Geolocation extension at commit 870667fc671801a467deb7c4c7fc
 	<key>variablesdontexport</key>
 	<array/>
 	<key>version</key>
-	<string>1.0.0</string>
+	<string>1.1.0</string>
 	<key>webaddress</key>
 	<string>https://github.com/raycast/extensions/tree/870667fc671801a467deb7c4c7fc72992efe3820/extensions/ip-geolocation</string>
 </dict>
