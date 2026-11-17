@@ -7,9 +7,15 @@ dist=${dist:A}
 work=$(/usr/bin/mktemp -d "${TMPDIR:-/tmp}/alfredworkflow.XXXXXX")
 trap '/bin/rm -rf -- "$work"' EXIT
 /bin/mkdir -p "$dist"
+names=("${@[2,-1]}")
+(( $#names )) || names=("$root"/*/info.plist(:h:t))
 
-for plist in "$root"/*/info.plist; do
-  dir=${plist:h}
+for name in $names; do
+  dir=$root/$name
+  if [[ ! -f $dir/info.plist ]]; then
+    print -u2 -r -- "No Alfred workflow named $name."
+    exit 1
+  fi
   output=$dist/${dir:t}.alfredworkflow
   /bin/rm -f "$output"
   if [[ -x $dir/build ]]; then
