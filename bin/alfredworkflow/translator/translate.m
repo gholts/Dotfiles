@@ -11,7 +11,22 @@
 }
 @end
 
-static id activeSession;
+@protocol TextSessionConfiguration <NSObject>
+@property (copy) NSLocale *sourceLocale;
+@property (copy) NSLocale *targetLocale;
+@end
+
+@protocol TextSession <NSObject>
+- (instancetype)initWithSourceLocale:(NSLocale *)source targetLocale:(NSLocale *)target;
+- (instancetype)initWithConfiguration:(id<TextSessionConfiguration>)configuration;
+- (void)setDelegate:(id)delegate;
+- (void)setAllowOnlineTranslation:(BOOL)allow;
+- (void)translateString:(NSString *)text completionHandler:(void (^)(id, NSError *))completion;
+- (void)cancel;
+- (void)cancel:(BOOL)hard;
+@end
+
+static id<TextSession> activeSession;
 
 static void cancelOnTermination(void) {
     static dispatch_source_t sources[3];
@@ -19,13 +34,13 @@ static void cancelOnTermination(void) {
     for (int index = 0; index < 3; index++) {
         signal(signals[index], SIG_IGN);
         sources[index] = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL, (uintptr_t)signals[index], 0,
-            dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0));
+            dispatch_get_main_queue());
         dispatch_source_set_event_handler(sources[index], ^{
-            id session = activeSession;
-            if ([session respondsToSelector:NSSelectorFromString(@"cancel")]) {
-                ((void (*)(id, SEL))objc_msgSend)(session, NSSelectorFromString(@"cancel"));
-                usleep(50000);
-            }
+            if ([activeSession respondsToSelector:@selector(cancel:)])
+                [activeSession cancel:YES];
+            else if ([activeSession respondsToSelector:@selector(cancel)])
+                [activeSession cancel];
+            if (activeSession) usleep(50000);
             _exit(0);
         });
         dispatch_resume(sources[index]);
@@ -38,29 +53,37 @@ static NSError *failure(NSString *message) {
 
 static id translate(NSString *text, NSString *source, NSString *target, NSError **error) {
     Class sessionClass = NSClassFromString(@"_LTTextSession");
-    NSArray *selectors = @[@"initWithSourceLocale:targetLocale:", @"setDelegate:", @"setAllowOnlineTranslation:", @"translateString:completionHandler:"];
-    for (NSString *selector in selectors) {
-        if (![sessionClass instancesRespondToSelector:NSSelectorFromString(selector)]) {
-            *error = failure(@"macOS system translation is unavailable on this Mac.");
-            return nil;
+    NSLocale *from = source ? [NSLocale localeWithLocaleIdentifier:source] : nil;
+    NSLocale *to = [NSLocale localeWithLocaleIdentifier:target];
+    id<TextSession> session = nil;
+    if ([sessionClass instancesRespondToSelector:@selector(initWithSourceLocale:targetLocale:)]) {
+        session = [[sessionClass alloc] initWithSourceLocale:from targetLocale:to];
+    } else if ([sessionClass instancesRespondToSelector:@selector(initWithConfiguration:)]) {
+        id<TextSessionConfiguration> config = [NSClassFromString(@"_LTTextSessionConfiguration") new];
+        if ([config respondsToSelector:@selector(setSourceLocale:)] && [config respondsToSelector:@selector(setTargetLocale:)]) {
+            config.sourceLocale = from;
+            config.targetLocale = to;
+            session = [(id<TextSession>)[sessionClass alloc] initWithConfiguration:config];
         }
     }
-
+    if (![session respondsToSelector:@selector(setDelegate:)] || ![session respondsToSelector:@selector(setAllowOnlineTranslation:)] ||
+        ![session respondsToSelector:@selector(translateString:completionHandler:)]) {
+        *error = failure(@"macOS system translation is unavailable on this Mac.");
+        return nil;
+    }
     Consent *consent __attribute__((objc_precise_lifetime)) = [Consent new];
-    id session = ((id (*)(id, SEL, id, id))objc_msgSend)([sessionClass alloc], NSSelectorFromString(@"initWithSourceLocale:targetLocale:"),
-        source ? [NSLocale localeWithLocaleIdentifier:source] : nil, [NSLocale localeWithLocaleIdentifier:target]);
-    ((void (*)(id, SEL, id))objc_msgSend)(session, NSSelectorFromString(@"setDelegate:"), consent);
-    ((void (*)(id, SEL, BOOL))objc_msgSend)(session, NSSelectorFromString(@"setAllowOnlineTranslation:"), YES);
-    activeSession = session;
+    [session setDelegate:consent];
+    [session setAllowOnlineTranslation:YES];
+    dispatch_sync(dispatch_get_main_queue(), ^{ activeSession = session; });
 
     __block id result;
     __block NSError *translationError;
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
-    ((void (*)(id, SEL, id, id))objc_msgSend)(session, NSSelectorFromString(@"translateString:completionHandler:"), text, ^(id value, NSError *valueError) {
+    [session translateString:text completionHandler:^(id value, NSError *valueError) {
         result = value;
         translationError = valueError;
         dispatch_semaphore_signal(done);
-    });
+    }];
     if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) {
         *error = failure(@"Translation timed out.");
         return nil;
@@ -158,9 +181,8 @@ static void output(NSDictionary *item) {
     puts([[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding].UTF8String);
 }
 
-int main(int argc, const char *argv[]) {
+static int run(void) {
     @autoreleasepool {
-        cancelOnTermination();
         [[NSBundle bundleWithPath:@"/System/Library/Frameworks/Translation.framework"] load];
         NSArray<NSString *> *arguments = NSProcessInfo.processInfo.arguments;
         NSString *keyword = arguments.count > 1 ? arguments[1] : @"";
@@ -186,6 +208,11 @@ int main(int argc, const char *argv[]) {
             return 0;
         }
 
+        if ([text rangeOfCharacterFromSet:NSCharacterSet.letterCharacterSet].location == NSNotFound) {
+            output(@{@"title": @"Nothing to translate", @"subtitle": text, @"valid": @NO});
+            return 0;
+        }
+
         NSError *error;
         NSString *message;
         id result = translate(text, nil, target, &error);
@@ -200,9 +227,7 @@ int main(int argc, const char *argv[]) {
                     break;
                 }
             }
-            if ([text rangeOfCharacterFromSet:NSCharacterSet.letterCharacterSet].location == NSNotFound)
-                message = @"Nothing to translate";
-            else if (unsupported)
+            if (unsupported)
                 message = [unsupported stringByAppendingString:@" isn't supported"];
             else if (!source || [language(source) isEqual:language(target)])
                 message = [@"Already in " stringByAppendingString:name(target)];
@@ -232,4 +257,11 @@ int main(int argc, const char *argv[]) {
         });
     }
     return 0;
+}
+
+int main(void) {
+    cancelOnTermination();
+    // macOS 27 delivers translation service work on the main queue.
+    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ exit(run()); });
+    dispatch_main();
 }
