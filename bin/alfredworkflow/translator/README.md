@@ -20,4 +20,4 @@ Return copies the translation. Command-Return pastes it into the frontmost app.
 
 ## Notes
 
-The source language is detected automatically. The workflow uses the private `_LTTextSession` class from Apple's Translation framework with online translation allowed, so text may be sent to Apple when offline language models aren't downloaded. Requests abandoned while typing are cancelled so they don't queue up. If macOS changes the private API, the workflow shows an error row instead of crashing.
+The source language is detected automatically. When macOS can't tell what short text like `hi` or `ok` is written in, the workflow favors your keyword languages and your macOS preferred languages. The workflow uses the private `_LTTextSession` class from Apple's Translation framework with online translation allowed, so text may be sent to Apple when offline language models aren't downloaded. Requests abandoned while typing are cancelled so they don't queue up. If macOS changes the private API, the workflow shows an error row instead of crashing.

@@ -335,7 +335,7 @@ Return copies the translation. Command-Return pastes it into the frontmost app.<
 	<key>variablesdontexport</key>
 	<array/>
 	<key>version</key>
-	<string>2.0.1</string>
+	<string>2.0.3</string>
 	<key>webaddress</key>
 	<string></string>
 </dict>

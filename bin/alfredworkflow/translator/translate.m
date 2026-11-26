@@ -2,11 +2,45 @@
 @import NaturalLanguage;
 #include <objc/message.h>
 
+@protocol LocalePair <NSObject>
+@property (readonly) NSLocale *sourceLocale, *targetLocale;
+@end
+
+@protocol PreflightConfiguration <NSObject>
+@property (readonly) NSLocale *resolvedSourceLocale, *resolvedTargetLocale;
+@property (readonly) NSArray<id<LocalePair>> *supportedLocalePairs;
+@end
+
+typedef NS_ENUM(NSInteger, WorkflowError) {
+    ServiceUnavailable, TranslationTimedOut, UnresolvedLanguagePair
+};
+static NSString *const workflowErrorDomain = @"Translator";
+
+static NSError *failure(WorkflowError code, NSString *message) {
+    return [NSError errorWithDomain:workflowErrorDomain code:code userInfo:@{NSLocalizedDescriptionKey: message}];
+}
+
+static BOOL hasSupportedPair(id<PreflightConfiguration> config) {
+    if (![config respondsToSelector:@selector(resolvedSourceLocale)] || ![config respondsToSelector:@selector(resolvedTargetLocale)] ||
+        ![config respondsToSelector:@selector(supportedLocalePairs)]) return NO;
+    NSLocale *source = config.resolvedSourceLocale, *target = config.resolvedTargetLocale;
+    if (!source.localeIdentifier.length || !target.localeIdentifier.length) return NO;
+    for (id<LocalePair> pair in config.supportedLocalePairs)
+        if ([source isEqual:pair.sourceLocale] && [target isEqual:pair.targetLocale]) return YES;
+    return NO;
+}
+
 @interface Consent : NSObject
 @end
 
 @implementation Consent
-- (void)needsUserInterventionForTextSession:(id)session configuration:(id)configuration completion:(void (^)(id, NSError *))completion {
+- (void)needsUserInterventionForTextSession:(id)session configuration:(id<PreflightConfiguration>)configuration completion:(void (^)(id, NSError *))completion {
+    if (@available(macOS 27, *)) {
+        if (!hasSupportedPair(configuration)) {
+            completion(nil, failure(UnresolvedLanguagePair, @"Couldn’t determine a supported language pair."));
+            return;
+        }
+    }
     completion(configuration, nil);
 }
 @end
@@ -47,10 +81,6 @@ static void cancelOnTermination(void) {
     }
 }
 
-static NSError *failure(NSString *message) {
-    return [NSError errorWithDomain:@"Translator" code:0 userInfo:@{NSLocalizedDescriptionKey: message}];
-}
-
 static id translate(NSString *text, NSString *source, NSString *target, NSError **error) {
     Class sessionClass = NSClassFromString(@"_LTTextSession");
     NSLocale *from = source ? [NSLocale localeWithLocaleIdentifier:source] : nil;
@@ -68,7 +98,7 @@ static id translate(NSString *text, NSString *source, NSString *target, NSError 
     }
     if (![session respondsToSelector:@selector(setDelegate:)] || ![session respondsToSelector:@selector(setAllowOnlineTranslation:)] ||
         ![session respondsToSelector:@selector(translateString:completionHandler:)]) {
-        *error = failure(@"macOS system translation is unavailable on this Mac.");
+        *error = failure(ServiceUnavailable, @"macOS system translation is unavailable on this Mac.");
         return nil;
     }
     Consent *consent __attribute__((objc_precise_lifetime)) = [Consent new];
@@ -85,14 +115,18 @@ static id translate(NSString *text, NSString *source, NSString *target, NSError 
         dispatch_semaphore_signal(done);
     }];
     if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 15 * NSEC_PER_SEC))) {
-        *error = failure(@"Translation timed out.");
+        *error = failure(TranslationTimedOut, @"Translation timed out.");
         return nil;
     }
     *error = translationError;
     return translationError ? nil : result;
 }
 
-static NSString *detect(NSString *text) {
+static NSString *language(NSString *locale) {
+    return [locale componentsSeparatedByString:@"_"].firstObject;
+}
+
+static NSString *detect(NSString *text, NSSet<NSString *> *preferred) {
     NSDictionary<NLLanguage, NSString *> *locales = @{
         NLLanguageArabic: @"ar_AE", NLLanguageSimplifiedChinese: @"zh_CN", NLLanguageTraditionalChinese: @"zh_TW",
         NLLanguageDutch: @"nl_NL", NLLanguageEnglish: @"en_US", NLLanguageFrench: @"fr_FR", NLLanguageGerman: @"de_DE",
@@ -104,7 +138,19 @@ static NSString *detect(NSString *text) {
     NLLanguageRecognizer *recognizer = [NLLanguageRecognizer new];
     recognizer.languageConstraints = locales.allKeys;
     [recognizer processString:text];
-    return recognizer.dominantLanguage ? locales[recognizer.dominantLanguage] : nil;
+    NLLanguage best = recognizer.dominantLanguage;
+    if (preferred.count) {
+        double top = 0;
+        NSDictionary<NLLanguage, NSNumber *> *hypotheses = [recognizer languageHypothesesWithMaximum:locales.count];
+        for (NLLanguage candidate in hypotheses) {
+            double score = hypotheses[candidate].doubleValue * ([preferred containsObject:language(locales[candidate])] ? 8 : 1);
+            if (score > top) {
+                top = score;
+                best = candidate;
+            }
+        }
+    }
+    return best ? locales[best] : nil;
 }
 
 static NSArray<NSString *> *supportedLocales(void) {
@@ -115,17 +161,16 @@ static NSArray<NSString *> *supportedLocales(void) {
     dispatch_semaphore_t done = dispatch_semaphore_create(0);
     ((void (*)(Class, SEL, long, BOOL, id))objc_msgSend)(translator, selector, 0, YES, ^(NSArray *pairs, NSError *error) {
         for (id pair in pairs) {
-            [locales addObject:[[pair valueForKey:@"sourceLocale"] localeIdentifier]];
-            [locales addObject:[[pair valueForKey:@"targetLocale"] localeIdentifier]];
+            NSString *source = [[pair valueForKey:@"sourceLocale"] localeIdentifier];
+            NSString *target = [[pair valueForKey:@"targetLocale"] localeIdentifier];
+            if (!source.length || !target.length) continue;
+            [locales addObject:source];
+            [locales addObject:target];
         }
         dispatch_semaphore_signal(done);
     });
     if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 5 * NSEC_PER_SEC))) return @[];
     return [locales.allObjects sortedArrayUsingSelector:@selector(compare:)];
-}
-
-static NSString *language(NSString *locale) {
-    return [locale componentsSeparatedByString:@"_"].firstObject;
 }
 
 static NSString *resolve(NSString *keyword, NSArray<NSString *> *locales) {
@@ -173,7 +218,8 @@ static NSString *name(NSString *identifier) {
 }
 
 static BOOL unsupportedPair(NSError *error) {
-    return [error.domain isEqual:@"TranslationErrorDomain"] && error.code == 11;
+    return ([error.domain isEqual:@"TranslationErrorDomain"] && error.code == 11) ||
+        ([error.domain isEqual:workflowErrorDomain] && error.code == UnresolvedLanguagePair);
 }
 
 static void output(NSDictionary *item) {
@@ -208,7 +254,7 @@ static int run(void) {
             return 0;
         }
 
-        if ([text rangeOfCharacterFromSet:NSCharacterSet.letterCharacterSet].location == NSNotFound) {
+        if ([text rangeOfString:@"\\p{L}" options:NSRegularExpressionSearch].location == NSNotFound) {
             output(@{@"title": @"Nothing to translate", @"subtitle": text, @"valid": @NO});
             return 0;
         }
@@ -219,8 +265,17 @@ static int run(void) {
         if (unsupportedPair(error)) {
             NSMutableSet *supported = [NSMutableSet set];
             for (NSString *locale in locales) [supported addObject:language(locale)];
-            NSString *unsupported = unsupportedLanguage(text, supported);
-            NSString *source = detect(text);
+            NSMutableSet *preferred = [NSMutableSet set];
+            if ([error.domain isEqual:workflowErrorDomain]) {
+                for (NSString *identifier in NSLocale.preferredLanguages)
+                    [preferred addObject:[identifier componentsSeparatedByString:@"-"].firstObject];
+                for (NSString *candidate in languageKeywords()) {
+                    NSString *locale = resolve([candidate stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet], locales);
+                    if (locale) [preferred addObject:language(locale)];
+                }
+            }
+            NSString *source = detect(text, preferred);
+            NSString *unsupported = [preferred containsObject:language(source)] ? nil : unsupportedLanguage(text, supported);
             for (NSString *candidate in targets) {
                 if (![language(candidate) isEqual:language(source)]) {
                     target = candidate;
@@ -229,7 +284,9 @@ static int run(void) {
             }
             if (unsupported)
                 message = [unsupported stringByAppendingString:@" isn't supported"];
-            else if (!source || [language(source) isEqual:language(target)])
+            else if (!source || ![locales containsObject:source])
+                message = @"Type more text to identify the language";
+            else if ([language(source) isEqual:language(target)])
                 message = [@"Already in " stringByAppendingString:name(target)];
             else
                 result = translate(text, source, target, &error);
@@ -261,7 +318,6 @@ static int run(void) {
 
 int main(void) {
     cancelOnTermination();
-    // macOS 27 delivers translation service work on the main queue.
     dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{ exit(run()); });
     dispatch_main();
 }
